@@ -23,8 +23,8 @@ export const INITIAL_STATE: GameState = {
   
   prestigeUpgrades: {
     automationUnlocked: false,
-    quantumImpulse: 0,
-    quickOverclock: 0,
+    clicksMultiplier: 0,
+    pointsMultiplier: 0,
   },
   
   automation: {
@@ -91,13 +91,13 @@ export function calculateCooldown(cooldownReductionLevel: number, quickOverclock
 // Points & Clicks gain calculations
 export function calculateClickYield(state: GameState) {
   const basePoints = 1.0 + state.upgrades.pointsBonus * 1.0;
-  const baseClicks = 1.0 + state.upgrades.clicksBonus * 0.2;
+  const baseClicks = (1.0 + state.upgrades.clicksBonus * 0.2) * Math.pow(1.3, state.prestigeUpgrades.clicksMultiplier);
 
   // Each click adds 0.01x to the click multiplier.
   const clickMultiplier = 1 + (state.clicks * 0.01);
   // Upgrade 4 multiplies all previous point multipliers by 1.1 per level.
   const shopMultiplier = Math.pow(1.1, state.upgrades.multiplierBonus);
-  const prestigeMultiplier = Math.pow(1.2, state.prestigeCount) * (1 + state.prestigeUpgrades.quantumImpulse * 0.5);
+  const prestigeMultiplier = Math.pow(1.2, state.prestigeCount) * Math.pow(2, state.prestigeUpgrades.pointsMultiplier);
 
   const totalMultiplier = clickMultiplier * shopMultiplier * prestigeMultiplier;
   const pointsEarned = basePoints * totalMultiplier;
