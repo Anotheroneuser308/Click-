@@ -123,6 +123,7 @@ export const PrestigeTab: React.FC<PrestigeTabProps> = ({
       )}
 
       {/* Prestige Upgrades Shop */}
+      {state.points >= PRESTIGE_THRESHOLD ? (
       <div className="space-y-3 pt-2">
         <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
           Квантовые улучшения (за PP)
@@ -241,6 +242,16 @@ export const PrestigeTab: React.FC<PrestigeTabProps> = ({
           </button>
         </div>
       </div>
+      ) : (
+        <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-700/70 text-center">
+          <p className="text-sm font-bold text-slate-200">
+            Сначала достигните 1 млн Points
+          </p>
+          <p className="text-xs text-slate-400 mt-1">
+            Престижные улучшения станут доступны после достижения 1 000 000 Points.
+          </p>
+        </div>
+      )}
 
       {/* Confirmation Modal */}
       {showConfirmModal && (
