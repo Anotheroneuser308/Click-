@@ -70,7 +70,7 @@ export default function App() {
   // Current cooldown values
   const maxCooldown = calculateCooldown(
     state.upgrades.cooldownReduction,
-    state.prestigeUpgrades.quickOverclock
+    0
   );
 
   const clickYields = calculateClickYield(state);
@@ -94,7 +94,7 @@ export default function App() {
     const yieldData = calculateClickYield(curr);
     const newCooldown = calculateCooldown(
       curr.upgrades.cooldownReduction,
-      curr.prestigeUpgrades.quickOverclock
+      0
     );
 
     const clientX = e ? e.clientX : window.innerWidth / 2;
@@ -174,7 +174,7 @@ export default function App() {
               nextClicks += yieldData.baseClicks;
               nextCooldown = calculateCooldown(
                 nextUpgrades.cooldownReduction,
-                curr.prestigeUpgrades.quickOverclock
+                0
               );
               nextAuto.autoclicker.timer = 0;
             }
@@ -211,9 +211,9 @@ export default function App() {
         if (nextAuto.autoUpg3.enabled && nextAuto.autoUpg3.level > 0) {
           nextAuto.autoUpg3.timer += dt;
           if (nextAuto.autoUpg3.timer >= nextAuto.autoUpg3.interval) {
-            const maxLvl = getMaxCooldownUpgrades(curr.prestigeUpgrades.quickOverclock);
+            const maxLvl = getMaxCooldownUpgrades(0);
             if (nextUpgrades.cooldownReduction < maxLvl) {
-              const cost = getBaseUpgradeCost('cooldownReduction', nextUpgrades.cooldownReduction, curr.prestigeUpgrades.quickOverclock);
+              const cost = getBaseUpgradeCost('cooldownReduction', nextUpgrades.cooldownReduction, 0);
               if (nextPoints >= cost) {
                 nextPoints -= cost;
                 nextUpgrades.cooldownReduction += 1;
@@ -268,7 +268,7 @@ export default function App() {
   const handleBuyUpgrade = (type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus') => {
     setState((prev) => {
       const cost = type === 'cooldownReduction'
-        ? getBaseUpgradeCost(type, prev.upgrades[type], prev.prestigeUpgrades.quickOverclock)
+        ? getBaseUpgradeCost(type, prev.upgrades[type], 0)
         : getBaseUpgradeCost(type, prev.upgrades[type]);
       if (prev.points < cost) return prev;
       return {
@@ -308,7 +308,7 @@ export default function App() {
 
   // Prestige Upgrade Shop
   const handleBuyPrestigeUpgrade = (
-    type: 'automationUnlocked' | 'quantumImpulse' | 'quickOverclock',
+    type: 'automationUnlocked' | 'clicksMultiplier' | 'pointsMultiplier',
     cost: number
   ) => {
     setState((prev) => {
@@ -419,8 +419,8 @@ export default function App() {
   const canAffordAnyUpgrade =
     state.points >= getBaseUpgradeCost('pointsBonus', state.upgrades.pointsBonus) ||
     state.points >= getBaseUpgradeCost('clicksBonus', state.upgrades.clicksBonus) ||
-    (state.upgrades.cooldownReduction < getMaxCooldownUpgrades(state.prestigeUpgrades.quickOverclock) &&
-      state.points >= getBaseUpgradeCost('cooldownReduction', state.upgrades.cooldownReduction, state.prestigeUpgrades.quickOverclock)) ||
+    (state.upgrades.cooldownReduction < getMaxCooldownUpgrades(0) &&
+      state.points >= getBaseUpgradeCost('cooldownReduction', state.upgrades.cooldownReduction, 0)) ||
     state.points >= getBaseUpgradeCost('multiplierBonus', state.upgrades.multiplierBonus);
 
   return (
