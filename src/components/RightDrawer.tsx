@@ -25,7 +25,7 @@ interface RightDrawerProps {
   // Actions
   onBuyUpgrade: (type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus') => void;
   onPrestige: () => void;
-  onBuyPrestigeUpgrade: (type: 'automationUnlocked' | 'quantumImpulse' | 'quickOverclock', cost: number) => void;
+  onBuyPrestigeUpgrade: (type: 'automationUnlocked' | 'clicksMultiplier' | 'pointsMultiplier', cost: number) => void;
   onToggleModule: (moduleKey: 'autoclicker' | 'autoUpg1' | 'autoUpg2' | 'autoUpg3' | 'autoUpg4') => void;
   onUpgradeModule: (moduleKey: 'autoclicker' | 'autoUpg1' | 'autoUpg2' | 'autoUpg3' | 'autoUpg4', cost: number) => void;
   onManualSave: () => void;
