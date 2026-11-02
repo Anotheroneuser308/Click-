@@ -1,0 +1,6 @@
+{
+  "name": "CyberCore: Neon Clicker",
+  "description": "Киберпанк кликер с квантовым кулдаун-ядром, магазином улучшений, престижем от 1 миллиона поинтов и многопоточной автоматикой.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
