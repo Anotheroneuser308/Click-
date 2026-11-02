@@ -9,10 +9,12 @@ export const INITIAL_STATE: GameState = {
   points: 0,
   totalPointsEarned: 0,
   clicks: 0,
+  chargeLevel: 0,
   cooldownRemaining: 0,
   prestigePoints: 0,
   totalPrestigePointsEarned: 0,
   prestigeCount: 0,
+  prestigeShopUnlocked: false,
   
   upgrades: {
     pointsBonus: 0,
@@ -90,8 +92,13 @@ export function calculateCooldown(cooldownReductionLevel: number, quickOverclock
 
 // Points & Clicks gain calculations
 export function calculateClickYield(state: GameState) {
+  const charge = state.chargeLevel || 0;
+  // User: "за каждое нажатие получаемые поинты умножаются на 0.01х, а получаемые клики в 0.005х"
+  const chargePointsMult = 1 + (charge * 0.01);
+  const chargeClicksMult = 1 + (charge * 0.005);
+
   const basePoints = 1.0 + state.upgrades.pointsBonus * 1.0;
-  const baseClicks = (1.0 + state.upgrades.clicksBonus * 0.2) * Math.pow(1.3, state.prestigeUpgrades.clicksMultiplier);
+  const baseClicks = (1.0 + state.upgrades.clicksBonus * 0.2) * Math.pow(1.3, state.prestigeUpgrades.clicksMultiplier) * chargeClicksMult;
 
   // Each click adds 0.01x to the click multiplier.
   const clickMultiplier = 1 + (state.clicks * 0.01);
@@ -99,7 +106,7 @@ export function calculateClickYield(state: GameState) {
   const shopMultiplier = Math.pow(1.1, state.upgrades.multiplierBonus);
   const prestigeMultiplier = Math.pow(1.2, state.prestigeCount) * Math.pow(2, state.prestigeUpgrades.pointsMultiplier);
 
-  const totalMultiplier = clickMultiplier * shopMultiplier * prestigeMultiplier;
+  const totalMultiplier = clickMultiplier * shopMultiplier * prestigeMultiplier * chargePointsMult;
   const pointsEarned = basePoints * totalMultiplier;
 
   return {
@@ -108,6 +115,8 @@ export function calculateClickYield(state: GameState) {
     clickMultiplier,
     shopMultiplier,
     prestigeMultiplier,
+    chargePointsMult,
+    chargeClicksMult,
     totalMultiplier,
     pointsEarned,
   };

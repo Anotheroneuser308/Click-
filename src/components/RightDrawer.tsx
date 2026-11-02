@@ -52,7 +52,11 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
   onImportSave,
   onResetProgress,
 }) => {
-  const isPrestigeLocked = state.points < PRESTIGE_THRESHOLD && state.prestigeCount === 0;
+  const isPrestigeLocked =
+    state.points < PRESTIGE_THRESHOLD &&
+    state.prestigeCount === 0 &&
+    !state.prestigeShopUnlocked &&
+    state.prestigePoints === 0;
   const isAutomationLocked = !state.prestigeUpgrades.automationUnlocked;
 
   // Rectangular sub-windows definitions

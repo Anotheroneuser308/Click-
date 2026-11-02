@@ -199,6 +199,36 @@ class CyberAudio {
       // Ignore
     }
   }
+
+  // Charge button click with rising pitch
+  public playCharge(level: number) {
+    if (this.isMuted) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    try {
+      const now = this.ctx.currentTime;
+      const osc = this.ctx.createOscillator();
+      const gain = this.ctx.createGain();
+
+      // Pitch rises from 350Hz up to 1050Hz as level increases from 1 to 100
+      const baseFreq = 350 + Math.min(100, Math.max(0, level)) * 7;
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(baseFreq, now);
+      osc.frequency.exponentialRampToValueAtTime(baseFreq * 1.25, now + 0.07);
+
+      gain.gain.setValueAtTime(0.14, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.07);
+
+      osc.connect(gain);
+      gain.connect(this.ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.07);
+    } catch {
+      // Ignore
+    }
+  }
 }
 
 export const soundEngine = new CyberAudio();

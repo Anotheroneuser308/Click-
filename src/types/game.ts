@@ -36,10 +36,12 @@ export interface GameState {
   points: number;
   totalPointsEarned: number;
   clicks: number;
+  chargeLevel: number; // 0 to 100 presses
   cooldownRemaining: number; // in seconds
   prestigePoints: number;
   totalPrestigePointsEarned: number;
   prestigeCount: number;
+  prestigeShopUnlocked: boolean;
   
   upgrades: BaseUpgrades;
   prestigeUpgrades: PrestigeUpgrades;

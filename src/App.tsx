@@ -20,6 +20,7 @@ import { TopStatusBar } from './components/TopStatusBar';
 import { CyberCore } from './components/CyberCore';
 import { RightDrawer } from './components/RightDrawer';
 import { ParticleCanvas } from './components/ParticleCanvas';
+import { ChargeBoostButton } from './components/ChargeBoostButton';
 
 const SAVE_KEY = 'cyber_clicker_save_v1';
 
@@ -34,6 +35,13 @@ export default function App() {
           return {
             ...INITIAL_STATE,
             ...parsed,
+            chargeLevel: typeof parsed.chargeLevel === 'number' ? parsed.chargeLevel : 0,
+            prestigeShopUnlocked: Boolean(
+              parsed.prestigeShopUnlocked ||
+              parsed.prestigeCount > 0 ||
+              (parsed.prestigePoints && parsed.prestigePoints > 0) ||
+              (parsed.totalPrestigePointsEarned && parsed.totalPrestigePointsEarned > 0)
+            ),
             settings: { ...INITIAL_STATE.settings, ...parsed.settings },
             upgrades: { ...INITIAL_STATE.upgrades, ...parsed.upgrades },
             prestigeUpgrades: { ...INITIAL_STATE.prestigeUpgrades, ...parsed.prestigeUpgrades },
@@ -237,11 +245,27 @@ export default function App() {
         }
       }
 
+      // Handle booster charge decay (slowly decreasing over time)
+      let nextCharge = curr.chargeLevel || 0;
+      if (nextCharge > 0) {
+        // Slowly decay: 0.4 charges per second (~4 minutes from 100 to 0)
+        nextCharge = Math.max(0, nextCharge - dt * 0.4);
+      }
+
+      // Permanently keep prestige shop unlocked once 1 PP is reached or owned
+      const nextPrestigeShopUnlocked =
+        Boolean(curr.prestigeShopUnlocked) ||
+        curr.prestigePoints >= 1 ||
+        curr.totalPrestigePointsEarned >= 1 ||
+        curr.prestigeCount > 0;
+
       setState((prev) => ({
         ...prev,
         points: nextPoints,
         totalPointsEarned: nextTotalEarned,
         clicks: nextClicks,
+        chargeLevel: nextCharge,
+        prestigeShopUnlocked: nextPrestigeShopUnlocked,
         upgrades: nextUpgrades,
         automation: nextAuto,
         cooldownRemaining: nextCooldown,
@@ -292,10 +316,12 @@ export default function App() {
         ...prev,
         points: 0,
         clicks: 0,
+        chargeLevel: 0,
         cooldownRemaining: 0,
         prestigePoints: prev.prestigePoints + rewardPP,
         totalPrestigePointsEarned: prev.totalPrestigePointsEarned + rewardPP,
         prestigeCount: prev.prestigeCount + 1,
+        prestigeShopUnlocked: true,
         upgrades: {
           pointsBonus: 0,
           clicksBonus: 0,
@@ -305,6 +331,18 @@ export default function App() {
       };
     });
   };
+
+  // Charge Boost Button Action (Max 100 presses)
+  const handleCharge = useCallback(() => {
+    setState((prev) => {
+      const currentCharge = prev.chargeLevel || 0;
+      if (currentCharge >= 100) return prev;
+      return {
+        ...prev,
+        chargeLevel: currentCharge + 1,
+      };
+    });
+  }, []);
 
   // Prestige Upgrade Shop
   const handleBuyPrestigeUpgrade = (
@@ -437,31 +475,44 @@ export default function App() {
         canAffordAnyUpgrade={canAffordAnyUpgrade}
       />
 
-      {/* Main Playfield with Central Cooldown Core */}
-      <main className="relative flex-1 flex flex-col items-center justify-center p-4 z-10">
-        <CyberCore
-          cooldownRemaining={state.cooldownRemaining}
-          maxCooldown={maxCooldown}
-          pointsYield={clickYields.pointsEarned}
-          clicksYield={clickYields.baseClicks}
-          onClick={handleCoreClick}
-          floatingEffects={floatingEffects}
-        />
+      {/* Main Playfield with Central Cooldown Core & Charge Boost Button */}
+      <main className="relative flex-1 flex flex-col items-center justify-center p-4 z-10 overflow-y-auto no-scrollbar">
+        <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-10 lg:gap-14 w-full max-w-5xl">
+          <CyberCore
+            cooldownRemaining={state.cooldownRemaining}
+            maxCooldown={maxCooldown}
+            pointsYield={clickYields.pointsEarned}
+            clicksYield={clickYields.baseClicks}
+            onClick={handleCoreClick}
+            floatingEffects={floatingEffects}
+          />
+
+          <ChargeBoostButton
+            chargeLevel={state.chargeLevel || 0}
+            onCharge={handleCharge}
+          />
+        </div>
 
         {/* Live Multiplier Formula Card */}
-        <div className="mt-8 px-4 py-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-center max-w-sm">
+        <div className="mt-6 px-4 py-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-center max-w-xl">
           <div className="text-[11px] text-slate-400">
             Формула доходности клика:
           </div>
-          <div className="font-mono-numbers text-xs text-slate-300 mt-0.5">
+          <div className="font-mono-numbers text-xs text-slate-300 mt-0.5 flex flex-wrap items-center justify-center gap-1">
             <span className="text-cyan-400 font-semibold">{clickYields.basePoints.toFixed(0)} P</span>
-            {' × '}
+            <span>×</span>
             <span className="text-purple-400 font-semibold">{clickYields.clickMultiplier.toFixed(2)}x</span>
-            {' × '}
+            <span>×</span>
             <span className="text-emerald-400 font-semibold">{Math.pow(1.1, state.upgrades.multiplierBonus).toFixed(2)}x</span>
-            {' × '}
+            <span>×</span>
             <span className="text-amber-400 font-semibold">{clickYields.prestigeMultiplier.toFixed(2)}x</span>
-            {' = '}
+            {(state.chargeLevel || 0) > 0 && (
+              <>
+                <span>×</span>
+                <span className="text-cyan-300 font-semibold">{(1 + (state.chargeLevel || 0) * 0.01).toFixed(2)}x (буст)</span>
+              </>
+            )}
+            <span>=</span>
             <strong className="text-cyan-300 font-bold">{clickYields.pointsEarned.toFixed(1)} P</strong>
           </div>
         </div>

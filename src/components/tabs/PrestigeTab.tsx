@@ -22,6 +22,12 @@ export const PrestigeTab: React.FC<PrestigeTabProps> = ({
   const progressRatio = Math.min(1, state.points / PRESTIGE_THRESHOLD);
   const potentialPP = calculatePrestigePointsReward(state.points);
 
+  const isShopVisible =
+    state.prestigeShopUnlocked ||
+    state.prestigePoints >= 1 ||
+    state.totalPrestigePointsEarned >= 1 ||
+    state.prestigeCount > 0;
+
   const clicksMultiplierCost = 2 + state.prestigeUpgrades.clicksMultiplier * 2;
   const pointsMultiplierCost = 1 + state.prestigeUpgrades.pointsMultiplier * 2;
 
@@ -123,7 +129,7 @@ export const PrestigeTab: React.FC<PrestigeTabProps> = ({
       )}
 
       {/* Prestige Upgrades Shop */}
-      {state.points >= PRESTIGE_THRESHOLD ? (
+      {isShopVisible ? (
       <div className="space-y-3 pt-2">
         <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
           Квантовые улучшения (за PP)
@@ -245,10 +251,10 @@ export const PrestigeTab: React.FC<PrestigeTabProps> = ({
       ) : (
         <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-700/70 text-center">
           <p className="text-sm font-bold text-slate-200">
-            Сначала достигните 1 млн Points
+            Сначала получите 1 Prestige Point
           </p>
           <p className="text-xs text-slate-400 mt-1">
-            Престижные улучшения станут доступны после достижения 1 000 000 Points.
+            Престижные улучшения станут доступны при получении хотя бы 1 PP (накопите 1 млн поинтов и совершите престиж).
           </p>
         </div>
       )}
