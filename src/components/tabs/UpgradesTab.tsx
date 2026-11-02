@@ -46,13 +46,13 @@ export const UpgradesTab: React.FC<UpgradesTabProps> = ({ state, onBuyUpgrade })
     {
       id: 'cooldownReduction' as const,
       title: '-0.1с к кулдауну',
-      desc: 'Снижает время перезарядки ядра для более быстрых нажатий',
+      desc: 'Снижает время перезарядки ядра до 0.5 сек. После 4.0 сек цена растёт быстрее с каждым снижением кулдауна.',
       icon: Timer,
       iconColor: 'text-blue-400',
       borderColor: 'border-blue-500/20 hover:border-blue-500/50',
       level: state.upgrades.cooldownReduction,
       currentStat: `${currentCooldown.toFixed(1)} сек кулдаун`,
-      cost: getBaseUpgradeCost('cooldownReduction', state.upgrades.cooldownReduction),
+      cost: getBaseUpgradeCost('cooldownReduction', state.upgrades.cooldownReduction, state.prestigeUpgrades.quickOverclock),
       isMax: isCooldownMaxed,
     },
     {
