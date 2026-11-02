@@ -213,7 +213,7 @@ export default function App() {
           if (nextAuto.autoUpg3.timer >= nextAuto.autoUpg3.interval) {
             const maxLvl = getMaxCooldownUpgrades(curr.prestigeUpgrades.quickOverclock);
             if (nextUpgrades.cooldownReduction < maxLvl) {
-              const cost = getBaseUpgradeCost('cooldownReduction', nextUpgrades.cooldownReduction);
+              const cost = getBaseUpgradeCost('cooldownReduction', nextUpgrades.cooldownReduction, curr.prestigeUpgrades.quickOverclock);
               if (nextPoints >= cost) {
                 nextPoints -= cost;
                 nextUpgrades.cooldownReduction += 1;
@@ -267,7 +267,9 @@ export default function App() {
   // Upgrade Actions
   const handleBuyUpgrade = (type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus') => {
     setState((prev) => {
-      const cost = getBaseUpgradeCost(type, prev.upgrades[type]);
+      const cost = type === 'cooldownReduction'
+        ? getBaseUpgradeCost(type, prev.upgrades[type], prev.prestigeUpgrades.quickOverclock)
+        : getBaseUpgradeCost(type, prev.upgrades[type]);
       if (prev.points < cost) return prev;
       return {
         ...prev,
@@ -418,7 +420,7 @@ export default function App() {
     state.points >= getBaseUpgradeCost('pointsBonus', state.upgrades.pointsBonus) ||
     state.points >= getBaseUpgradeCost('clicksBonus', state.upgrades.clicksBonus) ||
     (state.upgrades.cooldownReduction < getMaxCooldownUpgrades(state.prestigeUpgrades.quickOverclock) &&
-      state.points >= getBaseUpgradeCost('cooldownReduction', state.upgrades.cooldownReduction)) ||
+      state.points >= getBaseUpgradeCost('cooldownReduction', state.upgrades.cooldownReduction, state.prestigeUpgrades.quickOverclock)) ||
     state.points >= getBaseUpgradeCost('multiplierBonus', state.upgrades.multiplierBonus);
 
   return (
