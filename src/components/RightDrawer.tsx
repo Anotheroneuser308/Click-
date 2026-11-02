@@ -68,8 +68,8 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
     },
     {
       id: 'prestige' as const,
-      label: 'Престиж',
-      sublabel: isPrestigeLocked ? 'от 1M поинтов' : 'Квантовый сброс',
+      label: isPrestigeLocked ? 'Locked' : 'Престиж',
+      sublabel: isPrestigeLocked ? 'Достигните 1M Points' : 'Квантовый сброс',
       icon: Sparkles,
       locked: isPrestigeLocked,
       accentColor: 'text-amber-400',
@@ -77,7 +77,7 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
     },
     {
       id: 'automation' as const,
-      label: 'Автоматика',
+      label: isAutomationLocked ? 'Locked' : 'Автоматика',
       sublabel: isAutomationLocked ? 'Разблокируйте в престиже' : '5 активных модулей',
       icon: Cpu,
       locked: isAutomationLocked,
