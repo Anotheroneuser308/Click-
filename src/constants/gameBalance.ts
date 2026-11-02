@@ -53,7 +53,7 @@ export function getBaseUpgradeCost(type: 'pointsBonus' | 'clicksBonus' | 'cooldo
       return Math.floor(25 * Math.pow(1.18, level));
     case 'cooldownReduction': // -0.1s cooldown
       return Math.floor(65 * Math.pow(1.28, level));
-    case 'multiplierBonus': // +0.1x multiplier
+    case 'multiplierBonus': // +10% to all previous multipliers per level
       return Math.floor(140 * Math.pow(1.22, level));
   }
 }
@@ -75,20 +75,21 @@ export function calculateCooldown(cooldownReductionLevel: number, quickOverclock
 export function calculateClickYield(state: GameState) {
   const basePoints = 1.0 + state.upgrades.pointsBonus * 1.0;
   const baseClicks = 1.0 + state.upgrades.clicksBonus * 0.2;
-  
-  // User requested formula: "клики увеличивают получаемые поинты на 0.01х за клик"
+
+  // Each click adds 0.01x to the click multiplier.
   const clickMultiplier = 1 + (state.clicks * 0.01);
-  const shopMultiplierBonus = state.upgrades.multiplierBonus * 0.1;
+  // Upgrade 4 multiplies all previous point multipliers by 1.1 per level.
+  const shopMultiplier = Math.pow(1.1, state.upgrades.multiplierBonus);
   const prestigeMultiplier = 1 + (state.prestigeUpgrades.quantumImpulse * 0.5);
-  
-  const totalMultiplier = (clickMultiplier + shopMultiplierBonus) * prestigeMultiplier;
+
+  const totalMultiplier = clickMultiplier * shopMultiplier * prestigeMultiplier;
   const pointsEarned = basePoints * totalMultiplier;
-  
+
   return {
     basePoints,
     baseClicks,
     clickMultiplier,
-    shopMultiplierBonus,
+    shopMultiplier,
     prestigeMultiplier,
     totalMultiplier,
     pointsEarned,
