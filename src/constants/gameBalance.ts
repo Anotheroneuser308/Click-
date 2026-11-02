@@ -97,7 +97,7 @@ export function calculateClickYield(state: GameState) {
   const clickMultiplier = 1 + (state.clicks * 0.01);
   // Upgrade 4 multiplies all previous point multipliers by 1.1 per level.
   const shopMultiplier = Math.pow(1.1, state.upgrades.multiplierBonus);
-  const prestigeMultiplier = 1 + (state.prestigeUpgrades.quantumImpulse * 0.5);
+  const prestigeMultiplier = Math.pow(1.2, state.prestigeCount) * (1 + state.prestigeUpgrades.quantumImpulse * 0.5);
 
   const totalMultiplier = clickMultiplier * shopMultiplier * prestigeMultiplier;
   const pointsEarned = basePoints * totalMultiplier;
