@@ -3,12 +3,12 @@ import { GameState } from '../../types/game';
 import { PRESTIGE_THRESHOLD, calculatePrestigePointsReward } from '../../constants/gameBalance';
 import { formatNumber, formatInt } from '../../utils/format';
 import { soundEngine } from '../../utils/audio';
-import { Lock, Sparkles, Cpu, Flame, Check, AlertTriangle } from 'lucide-react';
+import { Lock, Sparkles, Cpu, Check, AlertTriangle, MousePointerClick, Zap } from 'lucide-react';
 
 interface PrestigeTabProps {
   state: GameState;
   onPrestige: () => void;
-  onBuyPrestigeUpgrade: (type: 'automationUnlocked' | 'quantumImpulse' | 'quickOverclock', cost: number) => void;
+  onBuyPrestigeUpgrade: (type: 'automationUnlocked' | 'clicksMultiplier' | 'pointsMultiplier', cost: number) => void;
 }
 
 export const PrestigeTab: React.FC<PrestigeTabProps> = ({
@@ -22,9 +22,8 @@ export const PrestigeTab: React.FC<PrestigeTabProps> = ({
   const progressRatio = Math.min(1, state.points / PRESTIGE_THRESHOLD);
   const potentialPP = calculatePrestigePointsReward(state.points);
 
-  const impulseCost = 1 + state.prestigeUpgrades.quantumImpulse * 2;
-  const overclockCost = 2 + state.prestigeUpgrades.quickOverclock * 2;
-  const isOverclockMaxed = state.prestigeUpgrades.quickOverclock >= 5;
+  const clicksMultiplierCost = 2 + state.prestigeUpgrades.clicksMultiplier * 2;
+  const pointsMultiplierCost = 1 + state.prestigeUpgrades.pointsMultiplier * 2;
 
   const handlePrestigeClick = () => {
     if (potentialPP <= 0) return;
@@ -172,83 +171,73 @@ export const PrestigeTab: React.FC<PrestigeTabProps> = ({
           </button>
         </div>
 
-        {/* Upgrade 2: Quantum Impulse (+50% points per level) */}
+        {/* Repeatable Click Multiplier */}
         <div className="p-3.5 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
-              <Sparkles className="w-5 h-5" />
+              <MousePointerClick className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h5 className="text-sm font-bold text-slate-100">
-                  Квантовый импульс
-                </h5>
+                <h5 className="text-sm font-bold text-slate-100">Click Enhancement</h5>
                 <span className="text-[10px] font-mono-numbers px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                  ур. {state.prestigeUpgrades.quantumImpulse}
+                  ур. {state.prestigeUpgrades.clicksMultiplier}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                +50% ко всем получаемым поинтам (текущий бонус: +{state.prestigeUpgrades.quantumImpulse * 50}%)
+                Умножает получаемые клики на ×1.3 за уровень
+              </p>
+              <p className="text-xs text-cyan-300 mt-1">
+                Текущий бонус: ×{Math.pow(1.3, state.prestigeUpgrades.clicksMultiplier).toFixed(2)}
               </p>
             </div>
           </div>
-
           <button
             onClick={() => {
-              if (state.prestigePoints >= impulseCost) {
+              if (state.prestigePoints >= clicksMultiplierCost) {
                 soundEngine.playBuy();
-                onBuyPrestigeUpgrade('quantumImpulse', impulseCost);
+                onBuyPrestigeUpgrade('clicksMultiplier', clicksMultiplierCost);
               }
             }}
-            disabled={state.prestigePoints < impulseCost}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
-              state.prestigePoints >= impulseCost
-                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.4)]'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-            }`}
+            disabled={state.prestigePoints < clicksMultiplierCost}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${state.prestigePoints >= clicksMultiplierCost ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
           >
-            {impulseCost} PP
+            {clicksMultiplierCost} PP
           </button>
         </div>
 
-        {/* Upgrade 3: Quick Overclock (-0.4s base cooldown per level) */}
+        {/* Repeatable Point Multiplier */}
         <div className="p-3.5 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
           <div className="flex items-start gap-3">
             <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
-              <Flame className="w-5 h-5" />
+              <Zap className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h5 className="text-sm font-bold text-slate-100">
-                  Турбо-разгон ядра
-                </h5>
+                <h5 className="text-sm font-bold text-slate-100">Point Enhancement</h5>
                 <span className="text-[10px] font-mono-numbers px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                  ур. {state.prestigeUpgrades.quickOverclock}/5
+                  ур. {state.prestigeUpgrades.pointsMultiplier}
                 </span>
               </div>
               <p className="text-xs text-slate-400 mt-0.5">
-                Снижает базовый начальный кулдаун на -0.4с за уровень
+                Умножает получаемые поинты на ×2 за уровень
+              </p>
+              <p className="text-xs text-cyan-300 mt-1">
+                Текущий бонус: ×{Math.pow(2, state.prestigeUpgrades.pointsMultiplier).toFixed(2)}
               </p>
             </div>
           </div>
-
           <button
             onClick={() => {
-              if (state.prestigePoints >= overclockCost && !isOverclockMaxed) {
+              if (state.prestigePoints >= pointsMultiplierCost) {
                 soundEngine.playBuy();
-                onBuyPrestigeUpgrade('quickOverclock', overclockCost);
+                onBuyPrestigeUpgrade('pointsMultiplier', pointsMultiplierCost);
               }
             }}
-            disabled={isOverclockMaxed || state.prestigePoints < overclockCost}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
-              isOverclockMaxed
-                ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                : state.prestigePoints >= overclockCost
-                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.4)]'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-            }`}
+            disabled={state.prestigePoints < pointsMultiplierCost}
+            className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${state.prestigePoints >= pointsMultiplierCost ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
           >
-            {isOverclockMaxed ? 'МАКС' : `${overclockCost} PP`}
+            {pointsMultiplierCost} PP
           </button>
         </div>
       </div>
