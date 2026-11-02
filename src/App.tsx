@@ -1,4 +1,4 @@
-/**
+/** 
  * @license
  * SPDX-License-Identifier: Apache-2.0
  */
@@ -453,13 +453,12 @@ export default function App() {
           </div>
           <div className="font-mono-numbers text-xs text-slate-300 mt-0.5">
             <span className="text-cyan-400 font-semibold">{clickYields.basePoints.toFixed(0)} P</span>
-            {' × '}(1 + <span className="text-purple-400 font-semibold">{(state.clicks * 0.01).toFixed(2)}x</span>
-            {state.upgrades.multiplierBonus > 0 && (
-              <> + <span className="text-emerald-400 font-semibold">{(state.upgrades.multiplierBonus * 0.1).toFixed(1)}x</span></>
-            )}
-            ){state.prestigeUpgrades.quantumImpulse > 0 && (
-              <> × <span className="text-amber-400 font-semibold">{(1 + state.prestigeUpgrades.quantumImpulse * 0.5).toFixed(1)}x</span></>
-            )}
+            {' × '}
+            <span className="text-purple-400 font-semibold">{clickYields.clickMultiplier.toFixed(2)}x</span>
+            {' × '}
+            <span className="text-emerald-400 font-semibold">{Math.pow(1.1, state.upgrades.multiplierBonus).toFixed(2)}x</span>
+            {' × '}
+            <span className="text-amber-400 font-semibold">{clickYields.prestigeMultiplier.toFixed(2)}x</span>
             {' = '}
             <strong className="text-cyan-300 font-bold">{clickYields.pointsEarned.toFixed(1)} P</strong>
           </div>
