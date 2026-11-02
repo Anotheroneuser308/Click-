@@ -1,7 +1,7 @@
 import { GameState } from '../types/game';
 
 export const INITIAL_COOLDOWN = 5.0; // 5 seconds
-export const MIN_COOLDOWN = 0.2;     // 0.2s minimum
+export const MIN_COOLDOWN = 0.5;     // 0.5s minimum
 export const PRESTIGE_THRESHOLD = 1_000_000; // 1 Million points to unlock prestige
 
 export const INITIAL_STATE: GameState = {
@@ -45,14 +45,31 @@ export const INITIAL_STATE: GameState = {
 };
 
 // Base upgrade cost formulas
-export function getBaseUpgradeCost(type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus', level: number): number {
+export function getBaseUpgradeCost(
+  type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus',
+  level: number,
+  quickOverclockLevel: number = 0
+): number {
   switch (type) {
     case 'pointsBonus': // +1 point
       return Math.floor(10 * Math.pow(1.15, level));
     case 'clicksBonus': // +0.2 clicks
       return Math.floor(25 * Math.pow(1.18, level));
-    case 'cooldownReduction': // -0.1s cooldown
-      return Math.floor(65 * Math.pow(1.28, level));
+    case 'cooldownReduction': { // -0.1s cooldown; price growth accelerates below 4.0s
+      const startingCooldown = Math.max(MIN_COOLDOWN, INITIAL_COOLDOWN - quickOverclockLevel * 0.4);
+      let cost = 65;
+      for (let i = 0; i < level; i++) {
+        const cooldownBeforePurchase = Math.max(
+          MIN_COOLDOWN,
+          Math.round((startingCooldown - i * 0.1) * 10) / 10
+        );
+        const growth = cooldownBeforePurchase > 4.0
+          ? 1.28
+          : 1.38 + (4.0 - cooldownBeforePurchase) * 0.1;
+        cost *= growth;
+      }
+      return Math.floor(cost);
+    }
     case 'multiplierBonus': // +10% to all previous multipliers per level
       return Math.floor(140 * Math.pow(1.22, level));
   }
