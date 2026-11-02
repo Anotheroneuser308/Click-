@@ -7,8 +7,8 @@ export interface BaseUpgrades {
 
 export interface PrestigeUpgrades {
   automationUnlocked: boolean; // 1 PP: Unlocks the Automation tab
-  quantumImpulse: number;      // 1 PP: +50% points gain per level
-  quickOverclock: number;      // 2 PP: -0.4s base starting cooldown per level
+  clicksMultiplier: number;   // ×1.3 clicks per level
+  pointsMultiplier: number;   // ×2 points per level
 }
 
 export interface AutomationModule {
