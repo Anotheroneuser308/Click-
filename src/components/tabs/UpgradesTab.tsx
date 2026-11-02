@@ -13,9 +13,9 @@ interface UpgradesTabProps {
 export const UpgradesTab: React.FC<UpgradesTabProps> = ({ state, onBuyUpgrade }) => {
   const currentCooldown = calculateCooldown(
     state.upgrades.cooldownReduction,
-    state.prestigeUpgrades.quickOverclock
+    0
   );
-  const maxCooldownLevel = getMaxCooldownUpgrades(state.prestigeUpgrades.quickOverclock);
+  const maxCooldownLevel = getMaxCooldownUpgrades(0);
   const isCooldownMaxed = state.upgrades.cooldownReduction >= maxCooldownLevel;
 
   const upgradesList = [
@@ -52,7 +52,7 @@ export const UpgradesTab: React.FC<UpgradesTabProps> = ({ state, onBuyUpgrade })
       borderColor: 'border-blue-500/20 hover:border-blue-500/50',
       level: state.upgrades.cooldownReduction,
       currentStat: `${currentCooldown.toFixed(1)} сек кулдаун`,
-      cost: getBaseUpgradeCost('cooldownReduction', state.upgrades.cooldownReduction, state.prestigeUpgrades.quickOverclock),
+      cost: getBaseUpgradeCost('cooldownReduction', state.upgrades.cooldownReduction, 0),
       isMax: isCooldownMaxed,
     },
     {
