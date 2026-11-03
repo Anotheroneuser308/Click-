@@ -3,17 +3,21 @@ import { Zap, CheckCircle2 } from 'lucide-react';
 import { soundEngine } from '../utils/audio';
 
 interface ChargeBoostButtonProps {
-  chargeLevel: number; // 0 to 100
+  chargeLevel: number;
+  maxCapacity?: number;
+  chargeStep?: number;
   onCharge: () => void;
 }
 
 export const ChargeBoostButton: React.FC<ChargeBoostButtonProps> = ({
   chargeLevel,
+  maxCapacity = 100,
+  chargeStep = 1,
   onCharge,
 }) => {
   const [clickSparks, setClickSparks] = useState<{ id: string; x: number; y: number }[]>([]);
-  const isMaxed = chargeLevel >= 100;
-  const progressPercent = Math.min(100, Math.max(0, chargeLevel));
+  const isMaxed = chargeLevel >= maxCapacity;
+  const progressPercent = Math.min(100, Math.max(0, (chargeLevel / maxCapacity) * 100));
 
   const handleClick = (e: React.MouseEvent<HTMLButtonElement>) => {
     if (isMaxed) return;
@@ -46,7 +50,7 @@ export const ChargeBoostButton: React.FC<ChargeBoostButtonProps> = ({
             className="absolute -translate-x-1/2 -translate-y-1/2 text-cyan-300 font-mono-numbers text-xs font-black animate-float-fade drop-shadow-[0_0_6px_rgba(0,242,254,0.8)]"
             style={{ left: `${spark.x}px`, top: `${spark.y}px` }}
           >
-            +1 (+0.01x P)
+            +{chargeStep.toFixed(1)} (+{(chargeStep * 0.01).toFixed(2)}x P)
           </div>
         ))}
       </div>
@@ -104,7 +108,7 @@ export const ChargeBoostButton: React.FC<ChargeBoostButtonProps> = ({
                     : 'text-cyan-300 text-glow-cyan'
                 }`}
               >
-                {Math.floor(chargeLevel)} <span className="text-slate-500 text-xs">/ 100</span>
+                {Math.floor(chargeLevel)} <span className="text-slate-500 text-xs">/ {maxCapacity}</span>
               </span>
             </div>
           </div>
@@ -133,7 +137,7 @@ export const ChargeBoostButton: React.FC<ChargeBoostButtonProps> = ({
               </span>
             ) : (
               <span className="text-slate-400 group-hover:text-cyan-300 transition-colors">
-                Нажмите для зарядки <strong className="text-white">+1</strong>
+                Нажмите для зарядки <strong className="text-white">+{chargeStep.toFixed(1)}</strong>
               </span>
             )}
             <span className="text-slate-500 font-mono-numbers text-[10px]">

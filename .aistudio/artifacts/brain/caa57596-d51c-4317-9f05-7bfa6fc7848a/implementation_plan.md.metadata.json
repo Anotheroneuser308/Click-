@@ -1,6 +1,6 @@
 {
-  "summary":  "Detailed architectural and visual implementation plan for the Cyberpunk Neon Clicker game featuring cooldown-based core clicking, rectangular sub-window navigation, upgrade shop, prestige progression at 1M points, automation module, and comprehensive save management.",
-  "updatedAt":  "2026-11-02T12:45:00.705491152Z",
-  "requestFeedback":  true,
-  "userFacing":  true
+  "summary": "План балансировки престижа, удаления пассивного дохода (% в секунду), внедрения компактной научной нотации для чисел от 1e6 и замены на усилители бустера/критов.",
+  "updatedAt": "2026-11-03T10:37:36.556327960Z",
+  "requestFeedback": true,
+  "userFacing": true
 }

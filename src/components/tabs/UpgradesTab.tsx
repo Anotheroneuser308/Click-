@@ -1,16 +1,20 @@
-import React from 'react';
-import { GameState } from '../../types/game';
-import { getBaseUpgradeCost, calculateCooldown, getMaxCooldownUpgrades } from '../../constants/gameBalance';
+import React, { useState } from 'react';
+import { GameState, BulkBuyMode } from '../../types/game';
+import { getBaseUpgradeCost, calculateCooldown, getMaxCooldownUpgrades, calculateBaseUpgradeBulk } from '../../constants/gameBalance';
 import { formatNumber } from '../../utils/format';
 import { soundEngine } from '../../utils/audio';
-import { Zap, MousePointerClick, Timer, TrendingUp } from 'lucide-react';
+import { Zap, MousePointerClick, Timer, TrendingUp, Layers } from 'lucide-react';
 
 interface UpgradesTabProps {
   state: GameState;
-  onBuyUpgrade: (type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus') => void;
+  onBuyUpgrade: (type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus', count: number, totalCost: number) => void;
 }
 
+const BULK_MODES: BulkBuyMode[] = [1, 5, 10, 25, 100, 'max'];
+
 export const UpgradesTab: React.FC<UpgradesTabProps> = ({ state, onBuyUpgrade }) => {
+  const [bulkMode, setBulkMode] = useState<BulkBuyMode>(1);
+
   const currentCooldown = calculateCooldown(
     state.upgrades.cooldownReduction,
     0
@@ -69,14 +73,21 @@ export const UpgradesTab: React.FC<UpgradesTabProps> = ({ state, onBuyUpgrade })
     },
   ];
 
-  const handleBuy = (id: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus', cost: number, isMax: boolean) => {
-    if (isMax || state.points < cost) return;
+  const handleBuy = (
+    id: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus',
+    count: number,
+    totalCost: number,
+    canAfford: boolean,
+    isMax: boolean
+  ) => {
+    if (isMax || !canAfford || count <= 0) return;
     soundEngine.playBuy();
-    onBuyUpgrade(id);
+    onBuyUpgrade(id, count, totalCost);
   };
 
   return (
     <div className="space-y-4">
+      {/* Header */}
       <div className="flex items-center justify-between pb-2 border-b border-slate-800">
         <div>
           <h3 className="text-base font-bold text-white tracking-wide">
@@ -94,10 +105,52 @@ export const UpgradesTab: React.FC<UpgradesTabProps> = ({ state, onBuyUpgrade })
         </div>
       </div>
 
+      {/* Bulk Buy Toggle Bar */}
+      <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+        <div className="flex items-center gap-1.5 text-xs text-slate-300 font-semibold px-1">
+          <Layers className="w-3.5 h-3.5 text-cyan-400" />
+          <span>Режим покупки:</span>
+        </div>
+        <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80">
+          {BULK_MODES.map((mode) => {
+            const isActive = bulkMode === mode;
+            return (
+              <button
+                key={mode}
+                onClick={() => setBulkMode(mode)}
+                className={`px-2.5 py-1 text-xs font-mono-numbers font-bold rounded-md transition-all cursor-pointer ${
+                  isActive
+                    ? 'bg-cyan-500 text-slate-950 shadow-[0_0_8px_rgba(0,242,254,0.4)] scale-105'
+                    : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                }`}
+              >
+                {mode === 'max' ? 'MAX' : `${mode}x`}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
       <div className="grid grid-cols-1 gap-3">
         {upgradesList.map((upg) => {
           const Icon = upg.icon;
-          const canAfford = state.points >= upg.cost && !upg.isMax;
+          const maxLevel = upg.id === 'cooldownReduction' ? maxCooldownLevel : Infinity;
+          const bulkInfo = calculateBaseUpgradeBulk(
+            upg.id,
+            upg.level,
+            bulkMode,
+            state.points,
+            maxLevel,
+            0
+          );
+
+          // In max mode, if cannot afford even 1, show cost of 1 for clarity
+          const displayCost = (bulkMode === 'max' && bulkInfo.count === 0)
+            ? upg.cost
+            : bulkInfo.totalCost;
+
+          const buyCount = bulkInfo.count;
+          const canBuy = bulkInfo.canAfford && buyCount > 0 && !upg.isMax;
 
           return (
             <div
@@ -137,25 +190,31 @@ export const UpgradesTab: React.FC<UpgradesTabProps> = ({ state, onBuyUpgrade })
                   ) : (
                     <div className="flex items-center gap-1.5">
                       <span className="text-slate-400">Стоимость:</span>
-                      <span className={`font-mono-numbers font-bold ${canAfford ? 'text-white' : 'text-slate-400'}`}>
-                        {formatNumber(upg.cost)} P
+                      <span className={`font-mono-numbers font-bold ${canBuy ? 'text-white' : 'text-slate-400'}`}>
+                        {formatNumber(displayCost)} P
                       </span>
                     </div>
                   )}
                 </div>
 
                 <button
-                  onClick={() => handleBuy(upg.id, upg.cost, upg.isMax)}
-                  disabled={!canAfford}
+                  onClick={() => handleBuy(upg.id, buyCount, bulkInfo.totalCost, bulkInfo.canAfford, upg.isMax)}
+                  disabled={!canBuy}
                   className={`px-4 py-2 rounded-lg text-xs font-bold transition-all duration-150 flex items-center gap-1.5 ${
                     upg.isMax
                       ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
-                      : canAfford
+                      : canBuy
                       ? 'bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-[0_0_12px_rgba(0,242,254,0.35)] cursor-pointer active:scale-95'
                       : 'bg-slate-800/80 text-slate-400 border border-slate-700/50 cursor-not-allowed'
                   }`}
                 >
-                  {upg.isMax ? 'МАКС' : 'Улучшить'}
+                  {upg.isMax
+                    ? 'МАКС'
+                    : bulkMode === 'max'
+                    ? (buyCount > 0 ? `Купить +${buyCount}` : 'Не хватает')
+                    : canBuy
+                    ? `Купить +${buyCount}`
+                    : `+${buyCount} (Не хватает)`}
                 </button>
               </div>
             </div>

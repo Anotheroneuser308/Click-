@@ -1,15 +1,37 @@
 import React, { useState } from 'react';
-import { GameState } from '../../types/game';
-import { PRESTIGE_THRESHOLD, calculatePrestigePointsReward } from '../../constants/gameBalance';
+import { GameState, PrestigeUpgrades, BulkBuyMode } from '../../types/game';
+import {
+  PRESTIGE_THRESHOLD,
+  calculatePrestigePointsReward,
+  getBoosterDecayRate,
+  calculatePrestigeUpgradeBulk,
+  getPrestigeUpgradeSingleCost,
+  getPrestigeUpgradeMaxLevel,
+} from '../../constants/gameBalance';
 import { formatNumber, formatInt } from '../../utils/format';
 import { soundEngine } from '../../utils/audio';
-import { Lock, Sparkles, Cpu, Check, AlertTriangle, MousePointerClick, Zap } from 'lucide-react';
+import {
+  Lock,
+  Sparkles,
+  Cpu,
+  Check,
+  AlertTriangle,
+  MousePointerClick,
+  Zap,
+  Flame,
+  Shield,
+  Radio,
+  Timer,
+  Layers,
+} from 'lucide-react';
 
 interface PrestigeTabProps {
   state: GameState;
   onPrestige: () => void;
-  onBuyPrestigeUpgrade: (type: 'automationUnlocked' | 'clicksMultiplier' | 'pointsMultiplier', cost: number) => void;
+  onBuyPrestigeUpgrade: (type: keyof PrestigeUpgrades, cost: number, count?: number) => void;
 }
+
+const BULK_MODES: BulkBuyMode[] = [1, 5, 10, 25, 100, 'max'];
 
 export const PrestigeTab: React.FC<PrestigeTabProps> = ({
   state,
@@ -17,6 +39,7 @@ export const PrestigeTab: React.FC<PrestigeTabProps> = ({
   onBuyPrestigeUpgrade,
 }) => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [bulkMode, setBulkMode] = useState<BulkBuyMode>(1);
 
   const isUnlocked = state.points >= PRESTIGE_THRESHOLD || state.prestigeCount > 0;
   const progressRatio = Math.min(1, state.points / PRESTIGE_THRESHOLD);
@@ -28,8 +51,6 @@ export const PrestigeTab: React.FC<PrestigeTabProps> = ({
     state.totalPrestigePointsEarned >= 1 ||
     state.prestigeCount > 0;
 
-  const clicksMultiplierCost = 2 + state.prestigeUpgrades.clicksMultiplier * 2;
-  const pointsMultiplierCost = 1 + state.prestigeUpgrades.pointsMultiplier * 2;
 
   const handlePrestigeClick = () => {
     if (potentialPP <= 0) return;
@@ -130,124 +151,459 @@ export const PrestigeTab: React.FC<PrestigeTabProps> = ({
 
       {/* Prestige Upgrades Shop */}
       {isShopVisible ? (
-      <div className="space-y-3 pt-2">
-        <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
-          Квантовые улучшения (за PP)
-        </h4>
+        <div className="space-y-3 pt-2">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold text-slate-300 uppercase tracking-wider">
+              Квантовые улучшения (за PP)
+            </h4>
+            <span className="text-[10px] text-amber-400 font-medium">
+              Постоянные бонусы
+            </span>
+          </div>
 
-        {/* Upgrade 1: Unlock Automation */}
-        <div className="p-3.5 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
-              <Cpu className="w-5 h-5" />
+          {/* Bulk Buy Toggle Bar */}
+          <div className="flex items-center justify-between p-2 rounded-xl bg-slate-900/80 border border-slate-800">
+            <div className="flex items-center gap-1.5 text-xs text-amber-300 font-semibold px-1">
+              <Layers className="w-3.5 h-3.5 text-amber-400" />
+              <span>Режим покупки PP:</span>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h5 className="text-sm font-bold text-slate-100">
-                  Модуль автоматики
-                </h5>
-                {state.prestigeUpgrades.automationUnlocked && (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
-                    <Check className="w-2.5 h-2.5" /> Активен
-                  </span>
-                )}
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Разблокирует вкладку «Автоматика» с автокликером и 4 автопокупщиками
-              </p>
+            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800/80">
+              {BULK_MODES.map((mode) => {
+                const isActive = bulkMode === mode;
+                return (
+                  <button
+                    key={mode}
+                    onClick={() => setBulkMode(mode)}
+                    className={`px-2.5 py-1 text-xs font-mono-numbers font-bold rounded-md transition-all cursor-pointer ${
+                      isActive
+                        ? 'bg-amber-400 text-slate-950 shadow-[0_0_8px_rgba(245,158,11,0.4)] scale-105'
+                        : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                    }`}
+                  >
+                    {mode === 'max' ? 'MAX' : `${mode}x`}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
-          <button
-            onClick={() => {
-              if (state.prestigePoints >= 1 && !state.prestigeUpgrades.automationUnlocked) {
-                soundEngine.playBuy();
-                onBuyPrestigeUpgrade('automationUnlocked', 1);
-              }
-            }}
-            disabled={state.prestigeUpgrades.automationUnlocked || state.prestigePoints < 1}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
-              state.prestigeUpgrades.automationUnlocked
-                ? 'bg-slate-800/80 text-emerald-400 border border-emerald-500/30 cursor-default'
-                : state.prestigePoints >= 1
-                ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.4)]'
-                : 'bg-slate-800 text-slate-500 cursor-not-allowed'
-            }`}
-          >
-            {state.prestigeUpgrades.automationUnlocked ? 'Куплено' : '1 PP'}
-          </button>
-        </div>
-
-        {/* Repeatable Click Multiplier */}
-        <div className="p-3.5 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
-              <MousePointerClick className="w-5 h-5" />
-            </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h5 className="text-sm font-bold text-slate-100">Click Enhancement</h5>
-                <span className="text-[10px] font-mono-numbers px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                  ур. {state.prestigeUpgrades.clicksMultiplier}
-                </span>
+          <div className="grid grid-cols-1 gap-2.5">
+            {/* 1. Unlock Automation (One-time) */}
+            <div className="p-3 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
+                  <Cpu className="w-4 h-4" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h5 className="text-xs font-bold text-slate-100">
+                      Модуль автоматики
+                    </h5>
+                    {state.prestigeUpgrades.automationUnlocked && (
+                      <span className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-emerald-950/60 text-emerald-400 border border-emerald-500/40 flex items-center gap-1">
+                        <Check className="w-2.5 h-2.5" /> Активен
+                      </span>
+                    )}
+                  </div>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Разблокирует вкладку «Автоматика» с автокликером и 4 автопокупщиками
+                  </p>
+                </div>
               </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Умножает получаемые клики на ×1.3 за уровень
-              </p>
-              <p className="text-xs text-cyan-300 mt-1">
-                Текущий бонус: ×{Math.pow(1.3, state.prestigeUpgrades.clicksMultiplier).toFixed(2)}
-              </p>
-            </div>
-          </div>
-          <button
-            onClick={() => {
-              if (state.prestigePoints >= clicksMultiplierCost) {
-                soundEngine.playBuy();
-                onBuyPrestigeUpgrade('clicksMultiplier', clicksMultiplierCost);
-              }
-            }}
-            disabled={state.prestigePoints < clicksMultiplierCost}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${state.prestigePoints >= clicksMultiplierCost ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
-          >
-            {clicksMultiplierCost} PP
-          </button>
-        </div>
 
-        {/* Repeatable Point Multiplier */}
-        <div className="p-3.5 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
-          <div className="flex items-start gap-3">
-            <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
-              <Zap className="w-5 h-5" />
+              <button
+                onClick={() => {
+                  if (state.prestigePoints >= 1 && !state.prestigeUpgrades.automationUnlocked) {
+                    soundEngine.playBuy();
+                    onBuyPrestigeUpgrade('automationUnlocked', 1, 1);
+                  }
+                }}
+                disabled={state.prestigeUpgrades.automationUnlocked || state.prestigePoints < 1}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                  state.prestigeUpgrades.automationUnlocked
+                    ? 'bg-slate-800/80 text-emerald-400 border border-emerald-500/30 cursor-default'
+                    : state.prestigePoints >= 1
+                    ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.4)]'
+                    : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                {state.prestigeUpgrades.automationUnlocked ? 'Куплено' : '1 PP'}
+              </button>
             </div>
-            <div>
-              <div className="flex items-center gap-2">
-                <h5 className="text-sm font-bold text-slate-100">Point Enhancement</h5>
-                <span className="text-[10px] font-mono-numbers px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
-                  ур. {state.prestigeUpgrades.pointsMultiplier}
-                </span>
-              </div>
-              <p className="text-xs text-slate-400 mt-0.5">
-                Умножает получаемые поинты на ×2 за уровень
-              </p>
-              <p className="text-xs text-cyan-300 mt-1">
-                Текущий бонус: ×{Math.pow(2, state.prestigeUpgrades.pointsMultiplier).toFixed(2)}
-              </p>
-            </div>
+
+            {/* 2. Point Enhancement (x2 points) */}
+            {(() => {
+              const bulk = calculatePrestigeUpgradeBulk(
+                'pointsMultiplier',
+                state.prestigeUpgrades.pointsMultiplier || 0,
+                bulkMode,
+                state.prestigePoints
+              );
+              const singleCost = getPrestigeUpgradeSingleCost(
+                'pointsMultiplier',
+                state.prestigeUpgrades.pointsMultiplier || 0
+              );
+              const displayCost = (bulkMode === 'max' && bulk.count === 0) ? singleCost : bulk.totalCost;
+              const canBuy = bulk.canAfford && bulk.count > 0;
+
+              return (
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
+                      <Zap className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="text-xs font-bold text-slate-100">Point Enhancement</h5>
+                        <span className="text-[10px] font-mono-numbers px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                          ур. {state.prestigeUpgrades.pointsMultiplier}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Увеличивает получаемые поинты на +25% за каждый уровень
+                      </p>
+                      <p className="text-[11px] text-cyan-300 font-mono-numbers mt-0.5">
+                        Текущий бонус: +{(state.prestigeUpgrades.pointsMultiplier * 25)}% (×{(1 + state.prestigeUpgrades.pointsMultiplier * 0.25).toFixed(2)})
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (canBuy) {
+                        soundEngine.playBuy();
+                        onBuyPrestigeUpgrade('pointsMultiplier', bulk.totalCost, bulk.count);
+                      }
+                    }}
+                    disabled={!canBuy}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                      canBuy
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.4)] active:scale-95'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {bulkMode === 'max'
+                      ? (bulk.count > 0 ? `+${bulk.count} (${displayCost} PP)` : 'Не хватает')
+                      : canBuy
+                      ? `+${bulk.count} (${displayCost} PP)`
+                      : `+${bulk.count} (${displayCost} PP)`}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* 3. Click Enhancement (+15% clicks) */}
+            {(() => {
+              const bulk = calculatePrestigeUpgradeBulk(
+                'clicksMultiplier',
+                state.prestigeUpgrades.clicksMultiplier || 0,
+                bulkMode,
+                state.prestigePoints
+              );
+              const singleCost = getPrestigeUpgradeSingleCost(
+                'clicksMultiplier',
+                state.prestigeUpgrades.clicksMultiplier || 0
+              );
+              const displayCost = (bulkMode === 'max' && bulk.count === 0) ? singleCost : bulk.totalCost;
+              const canBuy = bulk.canAfford && bulk.count > 0;
+
+              return (
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
+                      <MousePointerClick className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="text-xs font-bold text-slate-100">Click Enhancement</h5>
+                        <span className="text-[10px] font-mono-numbers px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                          ур. {state.prestigeUpgrades.clicksMultiplier}
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Увеличивает получаемые клики на +15% за каждый уровень
+                      </p>
+                      <p className="text-[11px] text-purple-300 font-mono-numbers mt-0.5">
+                        Текущий бонус: +{(state.prestigeUpgrades.clicksMultiplier * 15)}% (×{(1 + state.prestigeUpgrades.clicksMultiplier * 0.15).toFixed(2)})
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (canBuy) {
+                        soundEngine.playBuy();
+                        onBuyPrestigeUpgrade('clicksMultiplier', bulk.totalCost, bulk.count);
+                      }
+                    }}
+                    disabled={!canBuy}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                      canBuy
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.4)] active:scale-95'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {bulkMode === 'max'
+                      ? (bulk.count > 0 ? `+${bulk.count} (${displayCost} PP)` : 'Не хватает')
+                      : canBuy
+                      ? `+${bulk.count} (${displayCost} PP)`
+                      : `+${bulk.count} (${displayCost} PP)`}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* 4. Quantum Crit (max 10) */}
+            {(() => {
+              const currentLvl = state.prestigeUpgrades.quantumCrit || 0;
+              const isMax = currentLvl >= 10;
+              const bulk = calculatePrestigeUpgradeBulk(
+                'quantumCrit',
+                currentLvl,
+                bulkMode,
+                state.prestigePoints
+              );
+              const singleCost = getPrestigeUpgradeSingleCost('quantumCrit', currentLvl);
+              const displayCost = (bulkMode === 'max' && bulk.count === 0) ? singleCost : bulk.totalCost;
+              const canBuy = !isMax && bulk.canAfford && bulk.count > 0;
+
+              return (
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
+                      <Flame className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="text-xs font-bold text-slate-100">Квантовый крит</h5>
+                        <span className="text-[10px] font-mono-numbers px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                          ур. {currentLvl}/10
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        +5% шанс критического импульса ядра (×5 к поинтам и кликам за клик)
+                      </p>
+                      <p className="text-[11px] text-amber-300 font-mono-numbers mt-0.5">
+                        Шанс крита: {(currentLvl * 5)}%
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (canBuy) {
+                        soundEngine.playBuy();
+                        onBuyPrestigeUpgrade('quantumCrit', bulk.totalCost, bulk.count);
+                      }
+                    }}
+                    disabled={!canBuy}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                      isMax
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        : canBuy
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.4)] active:scale-95'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {isMax
+                      ? 'МАКС'
+                      : bulkMode === 'max'
+                      ? (bulk.count > 0 ? `+${bulk.count} (${displayCost} PP)` : 'Не хватает')
+                      : canBuy
+                      ? `+${bulk.count} (${displayCost} PP)`
+                      : `+${bulk.count} (${displayCost} PP)`}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* 5. Booster Superconductor (max 4) */}
+            {(() => {
+              const currentLvl = state.prestigeUpgrades.boosterSuperconductor || 0;
+              const isMax = currentLvl >= 4;
+              const bulk = calculatePrestigeUpgradeBulk(
+                'boosterSuperconductor',
+                currentLvl,
+                bulkMode,
+                state.prestigePoints
+              );
+              const singleCost = getPrestigeUpgradeSingleCost('boosterSuperconductor', currentLvl);
+              const displayCost = (bulkMode === 'max' && bulk.count === 0) ? singleCost : bulk.totalCost;
+              const canBuy = !isMax && bulk.canAfford && bulk.count > 0;
+
+              return (
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
+                      <Shield className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="text-xs font-bold text-slate-100">Сверхпроводник бустера</h5>
+                        <span className="text-[10px] font-mono-numbers px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                          ур. {currentLvl}/4
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Замедляет утечку заряда бустера на 20% за каждый уровень
+                      </p>
+                      <p className="text-[11px] text-cyan-300 font-mono-numbers mt-0.5">
+                        Скорость спада: {getBoosterDecayRate(currentLvl).toFixed(2)} зар/сек
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (canBuy) {
+                        soundEngine.playBuy();
+                        onBuyPrestigeUpgrade('boosterSuperconductor', bulk.totalCost, bulk.count);
+                      }
+                    }}
+                    disabled={!canBuy}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                      isMax
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        : canBuy
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.4)] active:scale-95'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {isMax
+                      ? 'МАКС'
+                      : bulkMode === 'max'
+                      ? (bulk.count > 0 ? `+${bulk.count} (${displayCost} PP)` : 'Не хватает')
+                      : canBuy
+                      ? `+${bulk.count} (${displayCost} PP)`
+                      : `+${bulk.count} (${displayCost} PP)`}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* 6. Booster Resonance (replaces passive reactor) */}
+            {(() => {
+              const currentLvl = state.prestigeUpgrades.boosterResonance || 0;
+              const isMax = currentLvl >= 25;
+              const bulk = calculatePrestigeUpgradeBulk(
+                'boosterResonance',
+                currentLvl,
+                bulkMode,
+                state.prestigePoints
+              );
+              const singleCost = getPrestigeUpgradeSingleCost('boosterResonance', currentLvl);
+              const displayCost = (bulkMode === 'max' && bulk.count === 0) ? singleCost : bulk.totalCost;
+              const canBuy = !isMax && bulk.canAfford && bulk.count > 0;
+
+              return (
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
+                      <Zap className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="text-xs font-bold text-slate-100">Резонатор бустера</h5>
+                        <span className="text-[10px] font-mono-numbers px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                          ур. {currentLvl}/25
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Усиливает отдачу накопителя бустера: +0.002x к множителю поинтов за единицу заряда
+                      </p>
+                      <p className="text-[11px] text-amber-300 font-mono-numbers mt-0.5">
+                        Бонус к эффекту бустера: +{(currentLvl * 0.2).toFixed(1)}% за каждое нажатие
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (canBuy) {
+                        soundEngine.playBuy();
+                        onBuyPrestigeUpgrade('boosterResonance', bulk.totalCost, bulk.count);
+                      }
+                    }}
+                    disabled={!canBuy}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                      isMax
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        : canBuy
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.4)] active:scale-95'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {isMax
+                      ? 'МАКС'
+                      : bulkMode === 'max'
+                      ? (bulk.count > 0 ? `+${bulk.count} (${displayCost} PP)` : 'Не хватает')
+                      : canBuy
+                      ? `+${bulk.count} (${displayCost} PP)`
+                      : `+${bulk.count} (${displayCost} PP)`}
+                  </button>
+                </div>
+              );
+            })()}
+
+            {/* 7. Cooldown Overdrive (max 3) */}
+            {(() => {
+              const currentLvl = state.prestigeUpgrades.cooldownOverdrive || 0;
+              const isMax = currentLvl >= 3;
+              const bulk = calculatePrestigeUpgradeBulk(
+                'cooldownOverdrive',
+                currentLvl,
+                bulkMode,
+                state.prestigePoints
+              );
+              const singleCost = getPrestigeUpgradeSingleCost('cooldownOverdrive', currentLvl);
+              const displayCost = (bulkMode === 'max' && bulk.count === 0) ? singleCost : bulk.totalCost;
+              const canBuy = !isMax && bulk.canAfford && bulk.count > 0;
+
+              return (
+                <div className="p-3 rounded-xl bg-slate-900/60 border border-amber-500/20 flex items-center justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <div className="p-2 rounded-lg bg-amber-950/40 border border-amber-500/30 text-amber-400 shrink-0">
+                      <Timer className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="text-xs font-bold text-slate-100">Овердрайв кулдауна</h5>
+                        <span className="text-[10px] font-mono-numbers px-1.5 py-0.5 rounded bg-slate-800 text-slate-300 border border-slate-700">
+                          ур. {currentLvl}/3
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        Снижает минимальный предел кулдауна ядра (-0.1с) и стартовое время (-0.2с)
+                      </p>
+                      <p className="text-[11px] text-blue-300 font-mono-numbers mt-0.5">
+                        Мин. лимит: {Math.max(0.2, 0.5 - currentLvl * 0.1).toFixed(1)}с
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (canBuy) {
+                        soundEngine.playBuy();
+                        onBuyPrestigeUpgrade('cooldownOverdrive', bulk.totalCost, bulk.count);
+                      }
+                    }}
+                    disabled={!canBuy}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${
+                      isMax
+                        ? 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                        : canBuy
+                        ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer shadow-[0_0_10px_rgba(245,158,11,0.4)] active:scale-95'
+                        : 'bg-slate-800 text-slate-500 cursor-not-allowed'
+                    }`}
+                  >
+                    {isMax
+                      ? 'МАКС'
+                      : bulkMode === 'max'
+                      ? (bulk.count > 0 ? `+${bulk.count} (${displayCost} PP)` : 'Не хватает')
+                      : canBuy
+                      ? `+${bulk.count} (${displayCost} PP)`
+                      : `+${bulk.count} (${displayCost} PP)`}
+                  </button>
+                </div>
+              );
+            })()}
           </div>
-          <button
-            onClick={() => {
-              if (state.prestigePoints >= pointsMultiplierCost) {
-                soundEngine.playBuy();
-                onBuyPrestigeUpgrade('pointsMultiplier', pointsMultiplierCost);
-              }
-            }}
-            disabled={state.prestigePoints < pointsMultiplierCost}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold shrink-0 transition-all ${state.prestigePoints >= pointsMultiplierCost ? 'bg-amber-500 hover:bg-amber-400 text-slate-950 cursor-pointer' : 'bg-slate-800 text-slate-500 cursor-not-allowed'}`}
-          >
-            {pointsMultiplierCost} PP
-          </button>
         </div>
-      </div>
       ) : (
         <div className="p-4 rounded-xl bg-slate-900/70 border border-slate-700/70 text-center">
           <p className="text-sm font-bold text-slate-200">
@@ -284,13 +640,13 @@ export const PrestigeTab: React.FC<PrestigeTabProps> = ({
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setShowConfirmModal(false)}
-                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors"
+                className="px-4 py-2 rounded-lg text-xs font-semibold text-slate-400 hover:text-white bg-slate-800 hover:bg-slate-700 transition-colors cursor-pointer"
               >
                 Отмена
               </button>
               <button
                 onClick={confirmPrestige}
-                className="px-4 py-2 rounded-lg text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 transition-all shadow-[0_0_12px_rgba(245,158,11,0.5)]"
+                className="px-4 py-2 rounded-lg text-xs font-bold text-slate-950 bg-amber-400 hover:bg-amber-300 transition-all shadow-[0_0_12px_rgba(245,158,11,0.5)] cursor-pointer"
               >
                 Подтвердить сброс
               </button>

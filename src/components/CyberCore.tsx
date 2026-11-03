@@ -55,7 +55,12 @@ export const CyberCore: React.FC<CyberCoreProps> = ({
               top: `${eff.y}px`,
             }}
           >
-            <span className="font-mono-numbers font-extrabold text-cyan-300 text-lg md:text-xl drop-shadow-[0_0_8px_rgba(0,242,254,0.8)]">
+            {eff.isCrit && (
+              <span className="text-[10px] md:text-xs font-black uppercase tracking-wider text-amber-300 bg-amber-950/90 border border-amber-400 px-2 py-0.5 rounded shadow-[0_0_12px_#f59e0b] mb-1">
+                ⚡ КРИТ!
+              </span>
+            )}
+            <span className={`font-mono-numbers font-extrabold text-lg md:text-xl drop-shadow-[0_0_8px_rgba(0,242,254,0.8)] ${eff.isCrit ? 'text-amber-300 text-glow-amber scale-110' : 'text-cyan-300'}`}>
               +{formatNumber(eff.points)} P
             </span>
             <span className="font-mono-numbers font-semibold text-purple-300 text-xs md:text-sm drop-shadow-[0_0_6px_rgba(168,85,247,0.8)]">

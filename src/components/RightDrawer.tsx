@@ -1,8 +1,9 @@
 import React from 'react';
-import { GameState, ActiveTab } from '../types/game';
+import { GameState, ActiveTab, PrestigeUpgrades, LevelPerks } from '../types/game';
 import { PRESTIGE_THRESHOLD } from '../constants/gameBalance';
 import { UpgradesTab } from './tabs/UpgradesTab';
 import { PrestigeTab } from './tabs/PrestigeTab';
+import { LevelTab } from './tabs/LevelTab';
 import { AutomationTab } from './tabs/AutomationTab';
 import { SettingsTab } from './tabs/SettingsTab';
 import {
@@ -10,6 +11,7 @@ import {
   ChevronLeft,
   Zap,
   Sparkles,
+  Award,
   Cpu,
   Settings,
   Lock,
@@ -23,9 +25,10 @@ interface RightDrawerProps {
   state: GameState;
   
   // Actions
-  onBuyUpgrade: (type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus') => void;
+  onBuyUpgrade: (type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus', count?: number, totalCost?: number) => void;
   onPrestige: () => void;
-  onBuyPrestigeUpgrade: (type: 'automationUnlocked' | 'clicksMultiplier' | 'pointsMultiplier', cost: number) => void;
+  onBuyPrestigeUpgrade: (type: keyof PrestigeUpgrades, cost: number, count?: number) => void;
+  onUpgradePerk: (perkKey: keyof LevelPerks, count?: number) => void;
   onToggleModule: (moduleKey: 'autoclicker' | 'autoUpg1' | 'autoUpg2' | 'autoUpg3' | 'autoUpg4') => void;
   onUpgradeModule: (moduleKey: 'autoclicker' | 'autoUpg1' | 'autoUpg2' | 'autoUpg3' | 'autoUpg4', cost: number) => void;
   onManualSave: () => void;
@@ -44,6 +47,7 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
   onBuyUpgrade,
   onPrestige,
   onBuyPrestigeUpgrade,
+  onUpgradePerk,
   onToggleModule,
   onUpgradeModule,
   onManualSave,
@@ -57,6 +61,12 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
     state.prestigeCount === 0 &&
     !state.prestigeShopUnlocked &&
     state.prestigePoints === 0;
+
+  const isLevelLocked =
+    state.prestigeCount === 0 &&
+    !state.prestigeShopUnlocked &&
+    state.totalPrestigePointsEarned === 0;
+
   const isAutomationLocked = !state.prestigeUpgrades.automationUnlocked;
 
   // Rectangular sub-windows definitions
@@ -78,6 +88,15 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
       locked: isPrestigeLocked,
       accentColor: 'text-amber-400',
       activeBg: 'bg-amber-950/40 border-amber-500/50 text-amber-300',
+    },
+    {
+      id: 'level' as const,
+      label: isLevelLocked ? 'Locked' : 'Уровень',
+      sublabel: isLevelLocked ? 'После Престижа' : `Ур. ${state.levelState?.level || 1} · ${state.levelState?.levelPoints || 0} LP`,
+      icon: Award,
+      locked: isLevelLocked,
+      accentColor: 'text-amber-300',
+      activeBg: 'bg-amber-950/40 border-amber-500/50 text-amber-200',
     },
     {
       id: 'automation' as const,
@@ -210,6 +229,9 @@ export const RightDrawer: React.FC<RightDrawerProps> = ({
                 onPrestige={onPrestige}
                 onBuyPrestigeUpgrade={onBuyPrestigeUpgrade}
               />
+            )}
+            {activeTab === 'level' && (
+              <LevelTab state={state} onUpgradePerk={onUpgradePerk} />
             )}
             {activeTab === 'automation' && (
               <AutomationTab

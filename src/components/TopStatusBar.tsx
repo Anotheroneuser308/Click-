@@ -8,6 +8,7 @@ import {
   Sparkles,
   ShoppingBag,
   Zap,
+  Award,
 } from 'lucide-react';
 
 interface TopStatusBarProps {
@@ -72,7 +73,7 @@ export const TopStatusBar: React.FC<TopStatusBarProps> = ({
             Множитель
           </span>
           <span className="font-mono-numbers text-base sm:text-lg md:text-xl font-black text-emerald-400">
-            x{yields.totalMultiplier.toFixed(2)}
+            x{yields.totalMultiplier >= 1e6 ? formatNumber(yields.totalMultiplier) : yields.totalMultiplier.toFixed(2)}
           </span>
         </div>
 
@@ -87,6 +88,21 @@ export const TopStatusBar: React.FC<TopStatusBarProps> = ({
             </span>
           </div>
         )}
+
+        {/* Cyber Level Badge */}
+        <div className="flex flex-col items-center sm:items-start shrink-0">
+          <span className="text-[10px] uppercase font-bold tracking-wider text-amber-300 flex items-center gap-1">
+            <Award className="w-3 h-3 text-amber-400" /> LVL
+          </span>
+          <div className="flex items-center gap-1.5">
+            <span className="font-mono-numbers text-base sm:text-lg md:text-xl font-black text-amber-300 text-glow-amber">
+              {state.levelState?.level || 1}
+            </span>
+            <span className="text-[10px] text-slate-500 font-mono-numbers hidden xl:inline">
+              ({Math.floor(state.levelState?.xp || 0)}/{state.levelState?.maxXp || 100})
+            </span>
+          </div>
+        </div>
       </div>
 
       {/* Actions Zone (Zone 3) */}

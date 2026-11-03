@@ -12,17 +12,15 @@ export function formatNumber(val: number, decimals: number = 1): string {
     return val.toFixed(decimals);
   }
 
-  const suffixes = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'Dc'];
-  const tier = Math.floor(Math.log10(val) / 3);
-  
-  if (tier < suffixes.length) {
-    const scale = Math.pow(10, tier * 3);
-    const scaled = val / scale;
-    const dec = scaled >= 100 ? 1 : 2;
-    return `${scaled.toFixed(dec)}${suffixes[tier]}`;
+  // Для чисел от 1 000 000 и выше используем компактную научную нотацию (1.25e6, 3.40e9)
+  if (val >= 1e6) {
+    return val.toExponential(2).replace('e+', 'e');
   }
 
-  return val.toExponential(2);
+  // Для чисел от 1 000 до 999 999 используем суффикс K
+  const scaled = val / 1000;
+  const dec = scaled >= 100 ? 1 : 2;
+  return `${scaled.toFixed(dec)}K`;
 }
 
 /**

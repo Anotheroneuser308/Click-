@@ -1,11 +1,11 @@
-import { GameState } from '../types/game';
+import { GameState, BulkBuyMode, PrestigeUpgrades } from '../types/game';
 
 export const INITIAL_COOLDOWN = 5.0; // 5 seconds
-export const MIN_COOLDOWN = 0.5;     // 0.5s minimum
+export const MIN_COOLDOWN = 0.5;     // 0.5s minimum base floor
 export const PRESTIGE_THRESHOLD = 1_000_000; // 1 Million points to unlock prestige
 
 export const INITIAL_STATE: GameState = {
-  version: 1,
+  version: 2,
   points: 0,
   totalPointsEarned: 0,
   clicks: 0,
@@ -27,6 +27,26 @@ export const INITIAL_STATE: GameState = {
     automationUnlocked: false,
     clicksMultiplier: 0,
     pointsMultiplier: 0,
+    quantumCrit: 0,
+    boosterSuperconductor: 0,
+    boosterResonance: 0,
+    cooldownOverdrive: 0,
+  },
+
+  levelState: {
+    level: 1,
+    xp: 0,
+    maxXp: 100,
+    levelPoints: 0,
+    totalXpEarned: 0,
+    perks: {
+      clickMastery: 0,
+      boosterCapacity: 0,
+      fastRecharge: 0,
+      superClicks: 0,
+      critPower: 0,
+      boosterStep: 0,
+    },
   },
   
   automation: {
@@ -77,37 +97,235 @@ export function getBaseUpgradeCost(
   }
 }
 
-// Maximum possible cooldown upgrades before reaching MIN_COOLDOWN
-export function getMaxCooldownUpgrades(quickOverclockLevel: number): number {
-  const base = Math.max(MIN_COOLDOWN, INITIAL_COOLDOWN - quickOverclockLevel * 0.4);
-  return Math.floor((base - MIN_COOLDOWN) / 0.1);
+// Bulk purchase calculation for base upgrades
+export function calculateBaseUpgradeBulk(
+  type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus',
+  currentLevel: number,
+  bulkMode: BulkBuyMode,
+  availablePoints: number,
+  maxLevel: number = Infinity,
+  quickOverclockLevel: number = 0
+): { count: number; totalCost: number; canAfford: boolean } {
+  if (currentLevel >= maxLevel) {
+    return { count: 0, totalCost: 0, canAfford: false };
+  }
+
+  if (bulkMode === 'max') {
+    let count = 0;
+    let totalCost = 0;
+    let remaining = availablePoints;
+
+    while (currentLevel + count < maxLevel) {
+      const nextCost = getBaseUpgradeCost(type, currentLevel + count, quickOverclockLevel);
+      if (remaining < nextCost) break;
+      remaining -= nextCost;
+      totalCost += nextCost;
+      count += 1;
+    }
+
+    return {
+      count,
+      totalCost,
+      canAfford: count > 0,
+    };
+  }
+
+  const targetCount = Math.min(bulkMode, maxLevel - currentLevel);
+  if (targetCount <= 0) {
+    return { count: 0, totalCost: 0, canAfford: false };
+  }
+
+  let totalCost = 0;
+  for (let i = 0; i < targetCount; i++) {
+    totalCost += getBaseUpgradeCost(type, currentLevel + i, quickOverclockLevel);
+  }
+
+  return {
+    count: targetCount,
+    totalCost,
+    canAfford: availablePoints >= totalCost,
+  };
 }
 
-// Current cooldown calculation
-export function calculateCooldown(cooldownReductionLevel: number, quickOverclockLevel: number): number {
-  const startingCooldown = Math.max(MIN_COOLDOWN, INITIAL_COOLDOWN - quickOverclockLevel * 0.4);
-  const total = startingCooldown - cooldownReductionLevel * 0.1;
-  return Math.max(MIN_COOLDOWN, Math.round(total * 10) / 10);
+// Bulk purchase calculation for Prestige upgrades
+export function getPrestigeUpgradeSingleCost(type: keyof PrestigeUpgrades, level: number): number {
+  switch (type) {
+    case 'automationUnlocked': return 1;
+    case 'pointsMultiplier': return 1 + level * 2;
+    case 'clicksMultiplier': return 2 + level * 2;
+    case 'quantumCrit': return 2 + level * 2;
+    case 'boosterSuperconductor': return 3 + level * 3;
+    case 'boosterResonance': return 2 + level * 2;
+    case 'cooldownOverdrive': return 4 + level * 4;
+    default: return 1;
+  }
+}
+
+export function getPrestigeUpgradeMaxLevel(type: keyof PrestigeUpgrades): number {
+  switch (type) {
+    case 'automationUnlocked': return 1;
+    case 'quantumCrit': return 10;
+    case 'boosterSuperconductor': return 4;
+    case 'boosterResonance': return 25;
+    case 'cooldownOverdrive': return 3;
+    default: return Infinity;
+  }
+}
+
+export function calculatePrestigeUpgradeBulk(
+  type: keyof PrestigeUpgrades,
+  currentLevel: number,
+  bulkMode: BulkBuyMode,
+  availablePP: number
+): { count: number; totalCost: number; canAfford: boolean } {
+  const maxLevel = getPrestigeUpgradeMaxLevel(type);
+  if (currentLevel >= maxLevel) {
+    return { count: 0, totalCost: 0, canAfford: false };
+  }
+
+  if (type === 'automationUnlocked') {
+    return { count: 1, totalCost: 1, canAfford: availablePP >= 1 };
+  }
+
+  if (bulkMode === 'max') {
+    let count = 0;
+    let totalCost = 0;
+    let remaining = availablePP;
+
+    while (currentLevel + count < maxLevel) {
+      const nextCost = getPrestigeUpgradeSingleCost(type, currentLevel + count);
+      if (remaining < nextCost) break;
+      remaining -= nextCost;
+      totalCost += nextCost;
+      count += 1;
+    }
+
+    return {
+      count,
+      totalCost,
+      canAfford: count > 0,
+    };
+  }
+
+  const targetCount = Math.min(bulkMode, maxLevel - currentLevel);
+  if (targetCount <= 0) {
+    return { count: 0, totalCost: 0, canAfford: false };
+  }
+
+  let totalCost = 0;
+  for (let i = 0; i < targetCount; i++) {
+    totalCost += getPrestigeUpgradeSingleCost(type, currentLevel + i);
+  }
+
+  return {
+    count: targetCount,
+    totalCost,
+    canAfford: availablePP >= totalCost,
+  };
+}
+
+// Bulk purchase calculation for Level Perks (cost is 1 LP each)
+export function calculateLevelPerkBulk(
+  currentLevel: number,
+  bulkMode: BulkBuyMode,
+  availableLP: number,
+  maxLevel: number = Infinity
+): { count: number; totalCost: number; canAfford: boolean } {
+  if (currentLevel >= maxLevel) {
+    return { count: 0, totalCost: 0, canAfford: false };
+  }
+
+  if (bulkMode === 'max') {
+    const affordable = Math.min(availableLP, maxLevel - currentLevel);
+    return {
+      count: affordable,
+      totalCost: affordable,
+      canAfford: affordable > 0,
+    };
+  }
+
+  const targetCount = Math.min(bulkMode, maxLevel - currentLevel);
+  return {
+    count: targetCount,
+    totalCost: targetCount,
+    canAfford: availableLP >= targetCount,
+  };
+}
+
+// Maximum possible cooldown upgrades before reaching min cooldown
+export function getMaxCooldownUpgrades(overdriveLevel: number = 0): number {
+  const minFloor = Math.max(0.2, MIN_COOLDOWN - overdriveLevel * 0.1);
+  const startingCooldown = Math.max(minFloor, INITIAL_COOLDOWN - overdriveLevel * 0.2);
+  return Math.floor((startingCooldown - minFloor) / 0.1);
+}
+
+// Current cooldown calculation with Overdrive and Fast Recharge perk
+export function calculateCooldown(
+  cooldownReductionLevel: number,
+  overdriveLevel: number = 0,
+  fastRechargeLevel: number = 0
+): number {
+  const minFloor = Math.max(0.2, MIN_COOLDOWN - overdriveLevel * 0.1);
+  const startingCooldown = Math.max(minFloor, INITIAL_COOLDOWN - overdriveLevel * 0.2);
+  const reduction = cooldownReductionLevel * 0.1 + fastRechargeLevel * 0.05;
+  const total = startingCooldown - reduction;
+  return Math.max(minFloor, Math.round(total * 100) / 100);
+}
+
+// Level XP scaling formula: XP needed to complete current level
+export function getXpForLevel(lvl: number): number {
+  return Math.floor(100 * Math.pow(1.25, lvl - 1));
+}
+
+// Maximum booster capacity (100 base + 25 per perk level)
+export function getMaxBoosterCapacity(boosterCapacityLevel: number = 0): number {
+  return 100 + boosterCapacityLevel * 25;
+}
+
+// Booster decay rate (0.4/s base, reduced by 20% per superconductor level down to min 0.08/s)
+export function getBoosterDecayRate(superconductorLevel: number = 0): number {
+  return Math.max(0.08, 0.4 * Math.pow(0.8, superconductorLevel));
 }
 
 // Points & Clicks gain calculations
 export function calculateClickYield(state: GameState) {
   const charge = state.chargeLevel || 0;
   // User: "за каждое нажатие получаемые поинты умножаются на 0.01х, а получаемые клики в 0.005х"
-  const chargePointsMult = 1 + (charge * 0.01);
+  // Резонатор бустера добавляет +0.002x к множителю поинтов за единицу заряда
+  const resonanceBonus = (state.prestigeUpgrades?.boosterResonance || 0) * 0.002;
+  const chargePointsMult = 1 + (charge * (0.01 + resonanceBonus));
   const chargeClicksMult = 1 + (charge * 0.005);
 
-  const basePoints = 1.0 + state.upgrades.pointsBonus * 1.0;
-  const baseClicks = (1.0 + state.upgrades.clicksBonus * 0.2) * Math.pow(1.3, state.prestigeUpgrades.clicksMultiplier) * chargeClicksMult;
+  const clickMasteryBonus = 1 + (state.levelState?.perks.clickMastery || 0) * 0.15;
+  const superClicksBonus = 1 + (state.levelState?.perks.superClicks || 0) * 0.20;
+
+  const basePoints = (1.0 + state.upgrades.pointsBonus * 1.0) * clickMasteryBonus;
+  // Сбалансированный множитель кликов: +15% за уровень улучшения престижа
+  const prestigeClicksBonus = 1 + (state.prestigeUpgrades?.clicksMultiplier || 0) * 0.15;
+  const baseClicks = (1.0 + state.upgrades.clicksBonus * 0.2) *
+    prestigeClicksBonus *
+    superClicksBonus *
+    chargeClicksMult;
 
   // Each click adds 0.01x to the click multiplier.
   const clickMultiplier = 1 + (state.clicks * 0.01);
   // Upgrade 4 multiplies all previous point multipliers by 1.1 per level.
   const shopMultiplier = Math.pow(1.1, state.upgrades.multiplierBonus);
-  const prestigeMultiplier = Math.pow(1.2, state.prestigeCount) * Math.pow(2, state.prestigeUpgrades.pointsMultiplier);
+
+  // Сбалансированный множитель престижа (устранение гиперинфляции):
+  // +25% за уровень престиж-улучшения вместо удвоения (2^x)
+  // и контролируемый мягкий бонус 1.15^prestigeCount от сбросов
+  const prestigePointsBonus = 1 + (state.prestigeUpgrades?.pointsMultiplier || 0) * 0.25;
+  const prestigeCountMult = Math.pow(1.15, state.prestigeCount);
+  const prestigeMultiplier = prestigeCountMult * prestigePointsBonus;
 
   const totalMultiplier = clickMultiplier * shopMultiplier * prestigeMultiplier * chargePointsMult;
   const pointsEarned = basePoints * totalMultiplier;
+
+  // Critical pulse chance (5% per level of quantumCrit, max 50%)
+  const critChance = Math.min(0.5, (state.prestigeUpgrades?.quantumCrit || 0) * 0.05);
+  // Critical pulse multiplier: base 5x + 0.5x per critPower perk level
+  const critMultiplier = 5 + (state.levelState?.perks?.critPower || 0) * 0.5;
 
   return {
     basePoints,
@@ -119,6 +337,8 @@ export function calculateClickYield(state: GameState) {
     chargeClicksMult,
     totalMultiplier,
     pointsEarned,
+    critChance,
+    critMultiplier,
   };
 }
 

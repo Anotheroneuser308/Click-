@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { GameState, ActiveTab, ClickEffect } from './types/game';
+import { GameState, ActiveTab, ClickEffect, PrestigeUpgrades, LevelPerks } from './types/game';
 import {
   INITIAL_STATE,
   getBaseUpgradeCost,
@@ -14,6 +14,10 @@ import {
   getAutoclickerInterval,
   getAutoUpgInterval,
   getMaxCooldownUpgrades,
+  calculateBaseUpgradeBulk,
+  getXpForLevel,
+  getMaxBoosterCapacity,
+  getBoosterDecayRate,
 } from './constants/gameBalance';
 import { soundEngine } from './utils/audio';
 import { TopStatusBar } from './components/TopStatusBar';
@@ -22,13 +26,13 @@ import { RightDrawer } from './components/RightDrawer';
 import { ParticleCanvas } from './components/ParticleCanvas';
 import { ChargeBoostButton } from './components/ChargeBoostButton';
 
-const SAVE_KEY = 'cyber_clicker_save_v1';
+const SAVE_KEY = 'cyber_clicker_save_v2';
 
 export default function App() {
   // Initialize state from LocalStorage or default
   const [state, setState] = useState<GameState>(() => {
     try {
-      const saved = localStorage.getItem(SAVE_KEY);
+      const saved = localStorage.getItem(SAVE_KEY) || localStorage.getItem('cyber_clicker_save_v1');
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && typeof parsed.points === 'number') {
@@ -42,9 +46,22 @@ export default function App() {
               (parsed.prestigePoints && parsed.prestigePoints > 0) ||
               (parsed.totalPrestigePointsEarned && parsed.totalPrestigePointsEarned > 0)
             ),
-            settings: { ...INITIAL_STATE.settings, ...parsed.settings },
-            upgrades: { ...INITIAL_STATE.upgrades, ...parsed.upgrades },
-            prestigeUpgrades: { ...INITIAL_STATE.prestigeUpgrades, ...parsed.prestigeUpgrades },
+            settings: { ...INITIAL_STATE.settings, ...(parsed.settings || {}) },
+            upgrades: { ...INITIAL_STATE.upgrades, ...(parsed.upgrades || {}) },
+            prestigeUpgrades: {
+              ...INITIAL_STATE.prestigeUpgrades,
+              ...(parsed.prestigeUpgrades || {}),
+              boosterResonance: parsed.prestigeUpgrades?.boosterResonance ?? parsed.prestigeUpgrades?.passiveReactor ?? 0,
+            },
+            levelState: {
+              ...INITIAL_STATE.levelState,
+              ...(parsed.levelState || {}),
+              perks: {
+                ...INITIAL_STATE.levelState.perks,
+                ...(parsed.levelState?.perks || {}),
+                critPower: parsed.levelState?.perks?.critPower ?? parsed.levelState?.perks?.autoHarvest ?? 0,
+              },
+            },
             automation: {
               autoclicker: { ...INITIAL_STATE.automation.autoclicker, ...(parsed.automation?.autoclicker || {}) },
               autoUpg1: { ...INITIAL_STATE.automation.autoUpg1, ...(parsed.automation?.autoUpg1 || {}) },
@@ -78,10 +95,12 @@ export default function App() {
   // Current cooldown values
   const maxCooldown = calculateCooldown(
     state.upgrades.cooldownReduction,
-    0
+    state.prestigeUpgrades?.cooldownOverdrive || 0,
+    state.levelState?.perks.fastRecharge || 0
   );
 
   const clickYields = calculateClickYield(state);
+  const maxBoosterCap = getMaxBoosterCapacity(state.levelState?.perks.boosterCapacity || 0);
 
   // Manual save to localStorage
   const saveToStorage = useCallback((currentState: GameState) => {
@@ -102,8 +121,39 @@ export default function App() {
     const yieldData = calculateClickYield(curr);
     const newCooldown = calculateCooldown(
       curr.upgrades.cooldownReduction,
-      0
+      curr.prestigeUpgrades?.cooldownOverdrive || 0,
+      curr.levelState?.perks.fastRecharge || 0
     );
+
+    // Roll for Critical Pulse
+    const isCrit = Math.random() < yieldData.critChance;
+    const critMult = yieldData.critMultiplier || 5;
+    const finalPoints = isCrit ? yieldData.pointsEarned * critMult : yieldData.pointsEarned;
+    const finalClicks = isCrit ? yieldData.baseClicks * critMult : yieldData.baseClicks;
+
+    if (isCrit) {
+      soundEngine.playCrit();
+    }
+
+    // Award XP
+    const earnedXp = (1 + Math.min(25, Math.floor(Math.log10(Math.max(1, finalPoints))))) * (isCrit ? 3 : 1);
+    let nextLvl = curr.levelState?.level || 1;
+    let nextXp = (curr.levelState?.xp || 0) + earnedXp;
+    let nextMaxXp = curr.levelState?.maxXp || getXpForLevel(nextLvl);
+    let nextLp = curr.levelState?.levelPoints || 0;
+    let leveledUp = false;
+
+    while (nextXp >= nextMaxXp) {
+      nextXp -= nextMaxXp;
+      nextLvl += 1;
+      nextLp += 1;
+      nextMaxXp = getXpForLevel(nextLvl);
+      leveledUp = true;
+    }
+
+    if (leveledUp) {
+      soundEngine.playLevelUp();
+    }
 
     const clientX = e ? e.clientX : window.innerWidth / 2;
     const clientY = e ? e.clientY : window.innerHeight / 2;
@@ -112,8 +162,9 @@ export default function App() {
       id: `${Date.now()}_${Math.random()}`,
       x: clientX,
       y: clientY,
-      points: yieldData.pointsEarned,
-      clicks: yieldData.baseClicks,
+      points: finalPoints,
+      clicks: finalClicks,
+      isCrit,
     };
 
     setFloatingEffects((prev) => [...prev.slice(-15), newEffect]);
@@ -123,14 +174,22 @@ export default function App() {
 
     setState((prev) => ({
       ...prev,
-      points: prev.points + yieldData.pointsEarned,
-      totalPointsEarned: prev.totalPointsEarned + yieldData.pointsEarned,
-      clicks: prev.clicks + yieldData.baseClicks,
+      points: prev.points + finalPoints,
+      totalPointsEarned: prev.totalPointsEarned + finalPoints,
+      clicks: prev.clicks + finalClicks,
       cooldownRemaining: newCooldown,
+      levelState: {
+        ...prev.levelState,
+        level: nextLvl,
+        xp: nextXp,
+        maxXp: nextMaxXp,
+        levelPoints: nextLp,
+        totalXpEarned: (prev.levelState?.totalXpEarned || 0) + earnedXp,
+      },
     }));
   }, []);
 
-  // Main Game Loop (50ms interval) for smooth countdowns and automation
+  // Main Game Loop (50ms interval) for smooth countdowns, automation, decay, and passive generation
   useEffect(() => {
     const loopInterval = setInterval(() => {
       const now = Date.now();
@@ -152,10 +211,11 @@ export default function App() {
         soundEngine.playReady();
       }
 
-      // Handle Automation if unlocked
+      // Пассивный доход в секунду полностью убран по требованию игрока ("убери все улучшения на % в секунду поинты")
       let nextPoints = curr.points;
       let nextTotalEarned = curr.totalPointsEarned;
       let nextClicks = curr.clicks;
+
       const nextUpgrades = { ...curr.upgrades };
       const nextAuto = {
         autoclicker: { ...curr.automation.autoclicker },
@@ -165,31 +225,33 @@ export default function App() {
         autoUpg4: { ...curr.automation.autoUpg4 },
       };
 
+      // 2. Automation Execution
       if (curr.prestigeUpgrades.automationUnlocked) {
-        // 1. Autoclicker Module
+        // Autoclicker
         if (nextAuto.autoclicker.enabled && nextAuto.autoclicker.level > 0) {
           nextAuto.autoclicker.timer += dt;
           if (nextAuto.autoclicker.timer >= nextAuto.autoclicker.interval) {
             if (nextCooldown <= 0) {
-              const yieldData = calculateClickYield({
+              const autoYield = calculateClickYield({
                 ...curr,
                 points: nextPoints,
                 clicks: nextClicks,
                 upgrades: nextUpgrades,
               });
-              nextPoints += yieldData.pointsEarned;
-              nextTotalEarned += yieldData.pointsEarned;
-              nextClicks += yieldData.baseClicks;
+              nextPoints += autoYield.pointsEarned;
+              nextTotalEarned += autoYield.pointsEarned;
+              nextClicks += autoYield.baseClicks;
               nextCooldown = calculateCooldown(
                 nextUpgrades.cooldownReduction,
-                0
+                curr.prestigeUpgrades.cooldownOverdrive || 0,
+                curr.levelState?.perks.fastRecharge || 0
               );
               nextAuto.autoclicker.timer = 0;
             }
           }
         }
 
-        // 2. AutoUpg 1 (+Points)
+        // AutoUpg 1 (+Points)
         if (nextAuto.autoUpg1.enabled && nextAuto.autoUpg1.level > 0) {
           nextAuto.autoUpg1.timer += dt;
           if (nextAuto.autoUpg1.timer >= nextAuto.autoUpg1.interval) {
@@ -202,7 +264,7 @@ export default function App() {
           }
         }
 
-        // 3. AutoUpg 2 (+Clicks)
+        // AutoUpg 2 (+Clicks)
         if (nextAuto.autoUpg2.enabled && nextAuto.autoUpg2.level > 0) {
           nextAuto.autoUpg2.timer += dt;
           if (nextAuto.autoUpg2.timer >= nextAuto.autoUpg2.interval) {
@@ -215,11 +277,11 @@ export default function App() {
           }
         }
 
-        // 4. AutoUpg 3 (-Cooldown)
+        // AutoUpg 3 (-Cooldown)
         if (nextAuto.autoUpg3.enabled && nextAuto.autoUpg3.level > 0) {
           nextAuto.autoUpg3.timer += dt;
           if (nextAuto.autoUpg3.timer >= nextAuto.autoUpg3.interval) {
-            const maxLvl = getMaxCooldownUpgrades(0);
+            const maxLvl = getMaxCooldownUpgrades(curr.prestigeUpgrades.cooldownOverdrive || 0);
             if (nextUpgrades.cooldownReduction < maxLvl) {
               const cost = getBaseUpgradeCost('cooldownReduction', nextUpgrades.cooldownReduction, 0);
               if (nextPoints >= cost) {
@@ -231,7 +293,7 @@ export default function App() {
           }
         }
 
-        // 5. AutoUpg 4 (+Multiplier)
+        // AutoUpg 4 (+Multiplier)
         if (nextAuto.autoUpg4.enabled && nextAuto.autoUpg4.level > 0) {
           nextAuto.autoUpg4.timer += dt;
           if (nextAuto.autoUpg4.timer >= nextAuto.autoUpg4.interval) {
@@ -245,14 +307,14 @@ export default function App() {
         }
       }
 
-      // Handle booster charge decay (slowly decreasing over time)
+      // 3. Handle booster charge decay (slowed by Booster Superconductor)
       let nextCharge = curr.chargeLevel || 0;
       if (nextCharge > 0) {
-        // Slowly decay: 0.4 charges per second (~4 minutes from 100 to 0)
-        nextCharge = Math.max(0, nextCharge - dt * 0.4);
+        const decayRate = getBoosterDecayRate(curr.prestigeUpgrades.boosterSuperconductor || 0);
+        nextCharge = Math.max(0, nextCharge - dt * decayRate);
       }
 
-      // Permanently keep prestige shop unlocked once 1 PP is reached or owned
+      // 4. Permanently keep prestige shop unlocked once 1 PP is reached or owned
       const nextPrestigeShopUnlocked =
         Boolean(curr.prestigeShopUnlocked) ||
         curr.prestigePoints >= 1 ||
@@ -288,29 +350,71 @@ export default function App() {
     return () => clearInterval(autosaveTimer);
   }, [saveToStorage]);
 
-  // Upgrade Actions
-  const handleBuyUpgrade = (type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus') => {
+  // Upgrade Actions (Supports Single & Bulk)
+  const handleBuyUpgrade = (
+    type: 'pointsBonus' | 'clicksBonus' | 'cooldownReduction' | 'multiplierBonus',
+    count: number = 1,
+    totalCost?: number
+  ) => {
     setState((prev) => {
-      const cost = type === 'cooldownReduction'
-        ? getBaseUpgradeCost(type, prev.upgrades[type], 0)
-        : getBaseUpgradeCost(type, prev.upgrades[type]);
-      if (prev.points < cost) return prev;
+      const maxLvl = type === 'cooldownReduction'
+        ? getMaxCooldownUpgrades(prev.prestigeUpgrades?.cooldownOverdrive || 0)
+        : Infinity;
+
+      let actualCost = totalCost;
+      let actualCount = count;
+
+      if (actualCost === undefined) {
+        const bulk = calculateBaseUpgradeBulk(
+          type,
+          prev.upgrades[type],
+          count as any,
+          prev.points,
+          maxLvl,
+          0
+        );
+        actualCount = bulk.count;
+        actualCost = bulk.totalCost;
+      }
+
+      if (actualCount <= 0 || prev.points < actualCost) return prev;
+      if (prev.upgrades[type] + actualCount > maxLvl) return prev;
+
       return {
         ...prev,
-        points: prev.points - cost,
+        points: prev.points - actualCost,
         upgrades: {
           ...prev.upgrades,
-          [type]: prev.upgrades[type] + 1,
+          [type]: prev.upgrades[type] + actualCount,
         },
       };
     });
   };
 
-  // Prestige Action
+  // Prestige Action (with XP burst for the Level mechanic!)
   const handlePrestige = () => {
     setState((prev) => {
       const rewardPP = calculatePrestigePointsReward(prev.points);
       if (rewardPP <= 0) return prev;
+
+      const prestigeXp = rewardPP * 250;
+      let nextLvl = prev.levelState?.level || 1;
+      let nextXp = (prev.levelState?.xp || 0) + prestigeXp;
+      let nextMaxXp = prev.levelState?.maxXp || getXpForLevel(nextLvl);
+      let nextLp = prev.levelState?.levelPoints || 0;
+      let leveledUp = false;
+
+      while (nextXp >= nextMaxXp) {
+        nextXp -= nextMaxXp;
+        nextLvl += 1;
+        nextLp += 1;
+        nextMaxXp = getXpForLevel(nextLvl);
+        leveledUp = true;
+      }
+
+      if (leveledUp) {
+        soundEngine.playLevelUp();
+      }
 
       return {
         ...prev,
@@ -322,6 +426,14 @@ export default function App() {
         totalPrestigePointsEarned: prev.totalPrestigePointsEarned + rewardPP,
         prestigeCount: prev.prestigeCount + 1,
         prestigeShopUnlocked: true,
+        levelState: {
+          ...prev.levelState,
+          level: nextLvl,
+          xp: nextXp,
+          maxXp: nextMaxXp,
+          levelPoints: nextLp,
+          totalXpEarned: (prev.levelState?.totalXpEarned || 0) + prestigeXp,
+        },
         upgrades: {
           pointsBonus: 0,
           clicksBonus: 0,
@@ -332,25 +444,29 @@ export default function App() {
     });
   };
 
-  // Charge Boost Button Action (Max 100 presses)
+  // Charge Boost Button Action (Dynamic Max capacity + Booster Step perk, NO XP)
   const handleCharge = useCallback(() => {
     setState((prev) => {
+      const maxCap = getMaxBoosterCapacity(prev.levelState?.perks.boosterCapacity || 0);
+      const chargeStep = 1 + (prev.levelState?.perks.boosterStep || 0) * 0.5;
       const currentCharge = prev.chargeLevel || 0;
-      if (currentCharge >= 100) return prev;
+      if (currentCharge >= maxCap) return prev;
+
       return {
         ...prev,
-        chargeLevel: currentCharge + 1,
+        chargeLevel: Math.min(maxCap, currentCharge + chargeStep),
       };
     });
   }, []);
 
-  // Prestige Upgrade Shop
+  // Prestige Upgrade Shop (Supports Single & Bulk)
   const handleBuyPrestigeUpgrade = (
-    type: 'automationUnlocked' | 'clicksMultiplier' | 'pointsMultiplier',
-    cost: number
+    type: keyof PrestigeUpgrades,
+    cost: number,
+    count: number = 1
   ) => {
     setState((prev) => {
-      if (prev.prestigePoints < cost) return prev;
+      if (prev.prestigePoints < cost || count <= 0) return prev;
 
       if (type === 'automationUnlocked') {
         return {
@@ -368,7 +484,27 @@ export default function App() {
         prestigePoints: prev.prestigePoints - cost,
         prestigeUpgrades: {
           ...prev.prestigeUpgrades,
-          [type]: prev.prestigeUpgrades[type] + 1,
+          [type]: ((prev.prestigeUpgrades[type] as number) || 0) + count,
+        },
+      };
+    });
+  };
+
+  // Level Perk Upgrade Action (Supports Single & Bulk)
+  const handleUpgradePerk = (perkKey: keyof LevelPerks, count: number = 1) => {
+    setState((prev) => {
+      const available = prev.levelState?.levelPoints || 0;
+      const toSpend = Math.min(available, Math.max(1, count));
+      if (toSpend < 1) return prev;
+      return {
+        ...prev,
+        levelState: {
+          ...prev.levelState,
+          levelPoints: prev.levelState.levelPoints - toSpend,
+          perks: {
+            ...prev.levelState.perks,
+            [perkKey]: (prev.levelState.perks[perkKey] || 0) + toSpend,
+          },
         },
       };
     });
@@ -444,12 +580,31 @@ export default function App() {
   };
 
   const handleImportSave = (importedState: GameState) => {
-    setState(importedState);
-    saveToStorage(importedState);
+    const migrated: GameState = {
+      ...INITIAL_STATE,
+      ...importedState,
+      prestigeUpgrades: {
+        ...INITIAL_STATE.prestigeUpgrades,
+        ...(importedState.prestigeUpgrades || {}),
+        boosterResonance: importedState.prestigeUpgrades?.boosterResonance ?? (importedState.prestigeUpgrades as any)?.passiveReactor ?? 0,
+      },
+      levelState: {
+        ...INITIAL_STATE.levelState,
+        ...(importedState.levelState || {}),
+        perks: {
+          ...INITIAL_STATE.levelState.perks,
+          ...(importedState.levelState?.perks || {}),
+          critPower: importedState.levelState?.perks?.critPower ?? (importedState.levelState?.perks as any)?.autoHarvest ?? 0,
+        },
+      },
+    };
+    setState(migrated);
+    saveToStorage(migrated);
   };
 
   const handleResetProgress = () => {
     localStorage.removeItem(SAVE_KEY);
+    localStorage.removeItem('cyber_clicker_save_v1');
     setState(INITIAL_STATE);
   };
 
@@ -457,7 +612,7 @@ export default function App() {
   const canAffordAnyUpgrade =
     state.points >= getBaseUpgradeCost('pointsBonus', state.upgrades.pointsBonus) ||
     state.points >= getBaseUpgradeCost('clicksBonus', state.upgrades.clicksBonus) ||
-    (state.upgrades.cooldownReduction < getMaxCooldownUpgrades(0) &&
+    (state.upgrades.cooldownReduction < getMaxCooldownUpgrades(state.prestigeUpgrades?.cooldownOverdrive || 0) &&
       state.points >= getBaseUpgradeCost('cooldownReduction', state.upgrades.cooldownReduction, 0)) ||
     state.points >= getBaseUpgradeCost('multiplierBonus', state.upgrades.multiplierBonus);
 
@@ -477,7 +632,7 @@ export default function App() {
 
       {/* Main Playfield with Central Cooldown Core & Charge Boost Button */}
       <main className="relative flex-1 flex flex-col items-center justify-center p-4 z-10 overflow-y-auto no-scrollbar">
-        <div className="flex flex-col md:flex-row items-center justify-center gap-6 md:gap-10 lg:gap-14 w-full max-w-5xl">
+        <div className="flex flex-col lg:flex-row items-center justify-center gap-6 md:gap-10 lg:gap-14 w-full max-w-5xl">
           <CyberCore
             cooldownRemaining={state.cooldownRemaining}
             maxCooldown={maxCooldown}
@@ -489,16 +644,18 @@ export default function App() {
 
           <ChargeBoostButton
             chargeLevel={state.chargeLevel || 0}
+            maxCapacity={maxBoosterCap}
+            chargeStep={1 + (state.levelState?.perks.boosterStep || 0) * 0.5}
             onCharge={handleCharge}
           />
         </div>
 
         {/* Live Multiplier Formula Card */}
-        <div className="mt-6 px-4 py-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-center max-w-xl">
+        <div className="mt-6 px-4 py-2 rounded-xl bg-slate-900/60 border border-slate-800/80 text-center max-w-2xl">
           <div className="text-[11px] text-slate-400">
             Формула доходности клика:
           </div>
-          <div className="font-mono-numbers text-xs text-slate-300 mt-0.5 flex flex-wrap items-center justify-center gap-1">
+          <div className="font-mono-numbers text-xs text-slate-300 mt-0.5 flex flex-wrap items-center justify-center gap-1.5">
             <span className="text-cyan-400 font-semibold">{clickYields.basePoints.toFixed(0)} P</span>
             <span>×</span>
             <span className="text-purple-400 font-semibold">{clickYields.clickMultiplier.toFixed(2)}x</span>
@@ -514,6 +671,12 @@ export default function App() {
             )}
             <span>=</span>
             <strong className="text-cyan-300 font-bold">{clickYields.pointsEarned.toFixed(1)} P</strong>
+
+            {clickYields.critChance > 0 && (
+              <span className="text-[10px] text-amber-400 font-bold ml-1">
+                (Крит: {(clickYields.critChance * 100).toFixed(0)}% chance x5)
+              </span>
+            )}
           </div>
         </div>
       </main>
@@ -528,6 +691,7 @@ export default function App() {
         onBuyUpgrade={handleBuyUpgrade}
         onPrestige={handlePrestige}
         onBuyPrestigeUpgrade={handleBuyPrestigeUpgrade}
+        onUpgradePerk={handleUpgradePerk}
         onToggleModule={handleToggleModule}
         onUpgradeModule={handleUpgradeModule}
         onManualSave={handleManualSave}
